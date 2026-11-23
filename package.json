@@ -9,6 +9,9 @@
   },
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=22.16.0"
+  },
   "dependencies": {
     "pg": "^8.23.1"
   },

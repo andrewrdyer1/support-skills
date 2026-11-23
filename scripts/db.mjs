@@ -7,11 +7,14 @@
 import { execFileSync } from "node:child_process"
 import fs from "node:fs"
 import path from "node:path"
+import pg from "pg"
 import { DB_PORT, DB_NAME } from "../src/db.mjs"
 
 const ROOT = path.join(import.meta.dirname, "..")
 const DATA = path.join(ROOT, "data", "pg")
+const SEED_STATE = path.join(DATA, ".paperkite-seed")
 const LOG = path.join(ROOT, "data", "postgres.log")
+const ADMIN = { host: "localhost", port: DB_PORT, database: "postgres", user: "postgres" }
 
 // Postgres refuses to start on macOS without a valid locale in the environment.
 // Linux machines don't always have en_US, but they do have C.UTF-8.
@@ -69,7 +72,6 @@ const PG_BIN = findPostgres()
 const tool = (name) => (PG_BIN ? path.join(PG_BIN, name) : name)
 
 const run = (cmd, args, opts = {}) => execFileSync(tool(cmd), args, { stdio: "pipe", encoding: "utf8", env, ...opts })
-const psql = (sql, db = "postgres") => run("psql", ["-h", "localhost", "-p", String(DB_PORT), "-U", "postgres", "-d", db, "-v", "ON_ERROR_STOP=1", "-qc", sql])
 
 function isRunning() {
   try {
@@ -80,12 +82,89 @@ function isRunning() {
   }
 }
 
-export function start() {
-  const fresh = !fs.existsSync(path.join(DATA, "PG_VERSION"))
-  if (fresh) {
-    fs.mkdirSync(path.dirname(DATA), { recursive: true })
-    run("initdb", ["-D", DATA, "-U", "postgres", "--auth=trust", "--encoding=UTF8", "--locale=C"])
+function initCluster() {
+  const versionFile = path.join(DATA, "PG_VERSION")
+  if (fs.existsSync(versionFile)) return
+
+  fs.mkdirSync(path.dirname(DATA), { recursive: true })
+  const staging = fs.mkdtempSync(path.join(path.dirname(DATA), "pg-init-"))
+  try {
+    run("initdb", ["-D", staging, "-U", "postgres", "--auth=trust", "--encoding=UTF8", "--locale=C"])
+    try {
+      fs.renameSync(staging, DATA)
+    } catch (err) {
+      // Another start may have published its initialized cluster first.
+      if (!fs.existsSync(versionFile)) throw err
+    }
+  } finally {
+    fs.rmSync(staging, { recursive: true, force: true })
   }
+}
+
+// Before the seed marker existed, the final SQL step installed the practice
+// trigger, then the seed script wrote the logs and Python lesson files.
+async function hasLegacySeed() {
+  const files = ["logs/history.log", "workspace/data/history.log", "workspace/data/harbor_invoices.csv", "workspace/data/contacts_import.csv"]
+  if (!files.every((file) => fs.existsSync(path.join(ROOT, file)))) return false
+
+  const course = new pg.Client({ ...ADMIN, database: DB_NAME })
+  await course.connect()
+  try {
+    const { rows } = await course.query("select to_regprocedure('public.never_save_practice()') is not null as seeded")
+    return rows[0].seeded
+  } finally {
+    await course.end()
+  }
+}
+
+async function prepareCourse(reset) {
+  const admin = new pg.Client(ADMIN)
+  await admin.connect()
+  try {
+    const { rows } = await admin.query("show data_directory")
+    if (fs.realpathSync(rows[0].data_directory) !== fs.realpathSync(DATA)) {
+      throw new Error(`Port ${DB_PORT} is connected to a different Postgres instance.`)
+    }
+    // Serialize setup and reset for this cluster until all seed files are written.
+    await admin.query("select pg_advisory_lock($1, 1)", [DB_PORT])
+    const state = fs.existsSync(SEED_STATE) ? fs.readFileSync(SEED_STATE, "utf8") : null
+    if (!reset && state === "ready") return
+
+    const database = await admin.query("select 1 from pg_database where datname = $1", [DB_NAME])
+    if (!reset && state === null && database.rowCount && await hasLegacySeed()) {
+      fs.writeFileSync(SEED_STATE, "ready")
+      return
+    }
+
+    fs.writeFileSync(SEED_STATE, "pending")
+    await admin.query(`
+      do $$
+      begin
+        if not exists (select from pg_roles where rolname = 'paperkite_app') then
+          create role paperkite_app login;
+        end if;
+        if not exists (select from pg_roles where rolname = 'learner') then
+          create role learner login;
+        end if;
+        if not exists (select from pg_roles where rolname = 'learner_sandbox') then
+          create role learner_sandbox login;
+        end if;
+      end $$;
+      alter role learner set default_transaction_read_only = on;
+      alter role learner set statement_timeout = '5s';
+      alter role learner_sandbox set statement_timeout = '5s';
+    `)
+    if (!database.rowCount) await admin.query(`create database ${DB_NAME}`)
+    await admin.query(`alter database ${DB_NAME} set timezone to 'UTC'`)
+    seed()
+    fs.writeFileSync(SEED_STATE, "ready")
+  } finally {
+    await admin.end()
+  }
+}
+
+export async function start({ reset = false } = {}) {
+  initCluster()
   if (!isRunning()) {
     // Connections are over localhost TCP only (-k '' turns off the Unix socket), so the folder
     // path can be any length and contain spaces; socket paths max out at 103 bytes.
@@ -98,16 +177,7 @@ export function start() {
       process.exit(1)
     }
   }
-  if (fresh) {
-    psql(`create role paperkite_app login; create role learner login; create role learner_sandbox login;`)
-    psql(`create database ${DB_NAME};`)
-    // Show every timestamp in UTC, the way production logs and databases usually do.
-    psql(`alter database ${DB_NAME} set timezone to 'UTC';`)
-    // The learner role can never write: every transaction it opens is read-only.
-    psql(`alter role learner set default_transaction_read_only = on; alter role learner set statement_timeout = '5s';`)
-    psql(`alter role learner_sandbox set statement_timeout = '5s';`)
-    seed()
-  }
+  await prepareCourse(reset)
 }
 
 export function seed() {
@@ -119,12 +189,10 @@ function stop() {
 }
 
 const command = process.argv[2]
-if (command === "start") start()
+if (command === "start") await start()
 else if (command === "stop") stop()
-else if (command === "reset") {
-  start()
-  seed()
-} else if (command) {
+else if (command === "reset") await start({ reset: true })
+else if (command) {
   console.error(`Unknown command: ${command}`)
   process.exit(1)
 }

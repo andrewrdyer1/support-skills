@@ -27,5 +27,5 @@ if (!ready) {
   fs.writeFileSync(READY, wanted)
 }
 
-start()
+await start()
 await import("../server.mjs")

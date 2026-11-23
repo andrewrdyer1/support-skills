@@ -17,19 +17,21 @@ Every lesson starts with a customer ticket and ends with you answering it.
 Made for **macOS**. Linux should work with Postgres from your package manager, but it hasn't
 been tested; Windows isn't supported.
 
-Needs Node 20+, Postgres (`brew install postgresql@16`) and Python 3.11+.
+Use a Node.js LTS release (22.16 or newer), PostgreSQL, and Python 3.11 or newer.
+On macOS, install PostgreSQL with `brew install postgresql@16`.
+
+In a terminal, start in any directory where you want to keep the course:
 
 ```bash
-cd ~/Developer
 git clone https://github.com/andrewrdyer1/support-skills.git
 cd support-skills
-npm install
+npm ci
 npm start
 ```
 
-Then open http://localhost:4747. The first start creates the database in `data/`, seeds it,
-and sets up Python in `.venv`. Clone it wherever you like; the lessons' commands follow the
-folder it's in.
+Then open http://localhost:4747. The first start creates and seeds the database in `data/`
+and downloads the Python dependencies into `.venv`. If startup reports that port `5488`
+is in use, free the port and run `npm start` again.
 
 ### Or let Claude Code set it up
 
@@ -45,8 +47,10 @@ It checks for Node, Postgres, and Python, installs what's missing (asking first)
 | `npm stop` | stop the database |
 | `npm run reset` | wipe the data and seed it again, exactly as it started |
 
-Connect with psql: `psql "postgresql://learner@localhost:5488/paperkite"` (read-only). Lesson 3's
-practice writes use a separate `learner_sandbox` role whose changes can never be committed.
+For the optional `psql` exercises, add the Homebrew binaries to your terminal's PATH if
+needed with `export PATH="$(brew --prefix postgresql@16)/bin:$PATH"`. Connect with
+`psql "postgresql://learner@localhost:5488/paperkite"` (read-only). Lesson 3's practice
+writes use a separate `learner_sandbox` role whose changes can never be committed.
 
 ## Lessons
 
@@ -86,7 +90,8 @@ scripts/db.mjs        runs the course's own Postgres on port 5488, inside data/
 public/               the lesson pages and the fake Paperkite web app (portal.html)
 ```
 
-Everything is local. Nothing is sent anywhere.
+Run the course on localhost. The in-page Python runner executes your code with the
+permissions of the account that started the course.
 
 ## License
 
