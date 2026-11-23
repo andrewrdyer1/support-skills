@@ -8,6 +8,7 @@
 import http from "node:http"
 import fs from "node:fs"
 import path from "node:path"
+import os from "node:os"
 import crypto from "node:crypto"
 import { handleApi } from "./src/api.mjs"
 import { log, LOG_DIR, LIVE_LOG } from "./src/log.mjs"
@@ -295,15 +296,38 @@ function readLogs(params) {
 }
 
 // ---------- plumbing ----------
+// The lessons are written as if the course lives in ~/Developer/support-skills. When it was
+// cloned somewhere else, rewrite those paths so every copy-paste command still works.
+const WRITTEN_AS = "~/Developer/support-skills"
+const home = os.homedir()
+const quote = (text) => '"' + text.replace(/["\\$`]/g, "\\$&") + '"'
+// How to type this folder in Terminal: ~/... when it's under your home folder, quoted if it has spaces.
+function shellPath(p) {
+  const underHome = p.startsWith(home + path.sep)
+  const shown = underHome ? "~" + p.slice(home.length) : p
+  if (/^[\w~./-]+$/.test(shown)) return shown
+  return underHome ? '"$HOME' + quote(p.slice(home.length)).slice(1) : quote(p)
+}
+function localizePaths(html) {
+  const here = shellPath(ROOT)
+  if (here === WRITTEN_AS) return html
+  return html.replaceAll("/Users/you/Developer/support-skills", ROOT).replaceAll(WRITTEN_AS, here)
+}
+
 function serveStatic(res, url) {
   let file = decodeURIComponent(url.pathname)
   if (file === "/") file = "/index.html"
+  if (file === "/favicon.ico") {
+    res.writeHead(204)
+    return res.end()
+  }
   const full = path.join(PUBLIC, file)
   if (!full.startsWith(PUBLIC) || !fs.existsSync(full) || fs.statSync(full).isDirectory()) {
     res.writeHead(404, { "Content-Type": "text/plain" })
     return res.end("Not found")
   }
   res.writeHead(200, { "Content-Type": MIME[path.extname(full)] || "application/octet-stream", "Cache-Control": "no-store" })
+  if (path.extname(full) === ".html") return res.end(localizePaths(fs.readFileSync(full, "utf8")))
   fs.createReadStream(full).pipe(res)
 }
 

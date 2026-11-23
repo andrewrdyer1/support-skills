@@ -2,8 +2,10 @@
 
 Where you write the Python scripts from Lessons 7 to 15.
 
+From the folder where you cloned the course:
+
 ```bash
-cd ~/Developer/support-skills/workspace
+cd workspace
 source ../.venv/bin/activate     # once per Terminal window
 python -m pytest lesson12         # run a lesson's tests
 python lesson12/log_report.py data/history.log

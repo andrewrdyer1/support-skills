@@ -14,15 +14,22 @@ Every lesson starts with a customer ticket and ends with you answering it.
 
 ## Run it
 
-Needs Node 20+, Postgres (Homebrew's `postgresql` is fine) and Python 3.11+.
-The first `npm start` also creates `.venv` and installs `requirements.txt`.
+Made for **macOS**. Linux should work with Postgres from your package manager, but it hasn't
+been tested; Windows isn't supported.
+
+Needs Node 20+, Postgres (`brew install postgresql@16`) and Python 3.11+.
 
 ```bash
+cd ~/Developer
+git clone https://github.com/andrewrdyer1/support-skills.git
+cd support-skills
 npm install
 npm start
 ```
 
-Then open http://localhost:4747. The first start creates the database in `data/` and seeds it.
+Then open http://localhost:4747. The first start creates the database in `data/`, seeds it,
+and sets up Python in `.venv`. Clone it wherever you like; the lessons' commands follow the
+folder it's in.
 
 ### Or let Claude Code set it up
 
