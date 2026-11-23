@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python, Fast</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="11">
+<main>
+
+<p class="kicker">Lesson 11 · Python review · about 40 minutes</p>
+<h1>Python, fast</h1>
+<p class="lede">The whole language on one page. If you did Lessons 7 to 10, this is a quick
+review that adds three shortcuts real scripts use everywhere: comprehensions, sorting with
+<code>key=</code>, and <code>try</code>/<code>except</code>. If you already know another
+language, it's the fast route in. Either way, the next four lessons are about building real
+scripts.</p>
+
+<div class="box tip">
+  <span class="tag">How to use this lesson</span>
+  <p>Skim the explanations, run the examples, do the exercises. Each exercise asks for a small
+  function and checks it with hidden tests. When one fails, the message tells you which case
+  broke. Your code is saved in this browser as you type.</p>
+  <p>In the editors, <kbd>Tab</kbd> indents by 4 spaces and <kbd>Enter</kbd> keeps your
+  indent, adding a level after a line that ends in <code>:</code>. In Python, indentation is
+  part of the syntax, not decoration.</p>
+</div>
+
+<h2>1. Running Python</h2>
+
+<p>Every box here runs real Python 3 on your Mac. In Terminal, the course has its own Python
+with the extra packages installed. Turn it on once per Terminal window:</p>
+
+<pre>cd ~/Developer/support-skills
+source .venv/bin/activate</pre>
+
+<p>Your prompt now starts with <code>(.venv)</code>. Type <code>python</code> for an
+interactive prompt where each line runs as you press Enter (<code>exit()</code> to leave), or
+<code>python some_script.py</code> to run a file. That <code>.venv</code> folder is a
+<strong>virtual environment</strong>: a private copy of Python with its own packages, so this
+project's libraries don't mix with anything else on your machine. Almost every Python project
+you'll meet at work has one.</p>
+
+<div class="py"><textarea>print("Hello from Python")
+print(2 + 3, "tickets")</textarea></div>
+
+<h2>2. Values, variables and None</h2>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Python</th><th>You've seen it as</th><th>Example</th></tr>
+  <tr><td><code>str</code></td><td>text</td><td><code>"overdue"</code> or <code>'overdue'</code> (both quotes work)</td></tr>
+  <tr><td><code>int</code>, <code>float</code></td><td>whole and decimal numbers</td><td><code>1250</code>, <code>12.5</code></td></tr>
+  <tr><td><code>bool</code></td><td>true / false</td><td><code>True</code>, <code>False</code> (capitalized)</td></tr>
+  <tr><td><code>None</code></td><td>null</td><td><code>paid_at = None</code></td></tr>
+  <tr><td><code>list</code></td><td>array</td><td><code>["open", "pending"]</code></td></tr>
+  <tr><td><code>dict</code></td><td>JSON object</td><td><code>{"id": 1152, "status": "open"}</code></td></tr>
+</table>
+</div>
+
+<p>A variable is just a name and <code>=</code>. No <code>const</code> or <code>let</code>.
+Comments start with <code>#</code>. To check for None, use <code>is None</code>, the same idea
+as SQL's <code>is null</code>.</p>
+
+<p><strong>f-strings</strong> are how you build text from values. Put an <code>f</code> before
+the quote and variables in <code>{braces}</code>:</p>
+
+<div class="py"><textarea>ticket_id = 1152
+customer = "Harbor & Pine Bakery"
+hours = 26.5
+
+print(f"Ticket #{ticket_id} from {customer} has waited {hours} hours")
+print(f"Rounded: {hours:.0f} hours")   # :.0f means "no decimal places"
+print(f"Money: ${1521.99:,.2f}")        # commas and 2 decimals</textarea></div>
+
+<p>Strings come with methods you'll use constantly in support scripts:</p>
+
+<div class="py"><textarea>raw = "  Priya.Shah@HarborAndPine.com "
+email = raw.strip().lower()           # remove outer spaces, lowercase
+print(email)
+print("@" in email)                   # True: "in" checks if text contains text
+print(email.split("@"))               # split into a list at the @
+print(email.split("@")[1])            # the second piece: the domain
+print(email.endswith(".com"), len(email))</textarea></div>
+
+<div class="exercise" data-id="p6-summary"></div>
+<div class="exercise" data-id="p6-clean-email"></div>
+
+<h2>3. Lists and dicts</h2>
+
+<p>A list holds values in order. Positions start at 0, and negative positions count from the
+end. A dict holds values by name, exactly like a JSON object. Most data you'll handle in
+Python is a list of dicts, which is what an API's JSON or a CSV file becomes.</p>
+
+<div class="py"><textarea>tickets = [
+    {"id": 1152, "subject": "CSV export says Something went wrong", "status": "open", "priority": "high"},
+    {"id": 1154, "subject": "Export to CSV broken?", "status": "open", "priority": "normal"},
+    {"id": 1155, "subject": "Can't download my invoices", "status": "pending", "priority": "normal"},
+]
+
+print(len(tickets))                 # how many
+print(tickets[0]["subject"])        # first ticket's subject
+print(tickets[-1]["id"])            # last ticket's id
+
+t = tickets[1]
+print(t.get("assignee"))            # .get gives None if the key is missing...
+print(t.get("assignee", "nobody"))  # ...or a default you choose
+# t["assignee"] would crash with KeyError: the key doesn't exist
+
+ids = []
+ids.append(1152)                    # add to the end of a list
+ids.append(1154)
+print(ids, 1154 in ids)</textarea></div>
+
+<h2>4. if, loops, and comprehensions</h2>
+
+<p>Conditions use <code>if</code> / <code>elif</code> / <code>else</code>, a colon, and an
+indented block. <code>and</code>, <code>or</code>, <code>not</code> are words.</p>
+
+<div class="box careful">
+  <span class="tag">Truthiness is different from JavaScript</span>
+  <p>In Python, an <strong>empty list <code>[]</code> and empty dict <code>{}</code> are
+  falsy</strong>, as are <code>0</code>, <code>""</code> and <code>None</code>. So
+  <code>if tickets:</code> means "if there are any tickets." (In JavaScript, an empty array is
+  truthy.)</p>
+</div>
+
+<div class="py"><textarea>tickets = [
+    {"id": 1152, "status": "open", "priority": "high"},
+    {"id": 1154, "status": "open", "priority": "normal"},
+    {"id": 1155, "status": "pending", "priority": "normal"},
+]
+
+for t in tickets:
+    if t["priority"] == "high":
+        label = "look now"
+    elif t["status"] == "pending":
+        label = "waiting on customer"
+    else:
+        label = "queue"
+    print(t["id"], label)
+
+# Counting with a dict:
+by_status = {}
+for t in tickets:
+    by_status[t["status"]] = by_status.get(t["status"], 0) + 1
+print(by_status)</textarea></div>
+
+<p>A <strong>list comprehension</strong> builds a new list from an old one in one line. Read it
+like SQL: <em>select</em> this, <em>from</em> that, <em>where</em> something.</p>
+
+<div class="py"><textarea>tickets = [
+    {"id": 1152, "status": "open", "priority": "high"},
+    {"id": 1154, "status": "open", "priority": "normal"},
+    {"id": 1155, "status": "pending", "priority": "normal"},
+]
+
+open_ids = [t["id"] for t in tickets if t["status"] == "open"]
+#           select      from              where
+print(open_ids)
+
+print(sorted(tickets, key=lambda t: t["id"], reverse=True)[0])  # sort by a field
+print(sum(1 for t in tickets if t["priority"] == "normal"))      # count matching</textarea></div>
+
+<p><code>key=lambda t: t["id"]</code> tells <code>sorted</code> what to sort by: for each
+ticket <code>t</code>, use <code>t["id"]</code>. A <code>lambda</code> is a tiny unnamed
+function, like an arrow function in JavaScript.</p>
+
+<div class="exercise" data-id="p6-open-ids"></div>
+<div class="exercise" data-id="p6-count-by"></div>
+
+<h2>5. Functions</h2>
+
+<p><code>def</code>, a name, parameters, a colon, an indented body, and <code>return</code>. A
+function without a <code>return</code> gives back <code>None</code>. Parameters can have
+defaults. The string right under the <code>def</code> line is a <strong>docstring</strong>,
+which describes what the function does.</p>
+
+<div class="py"><textarea>TARGET_HOURS = {"urgent": 1, "high": 4, "normal": 12, "low": 24}
+
+def is_breached(hours_waiting, priority="normal"):
+    """True if a ticket has waited longer than its priority allows."""
+    return hours_waiting > TARGET_HOURS[priority]
+
+print(is_breached(5, "high"))
+print(is_breached(5))          # uses the default, "normal"</textarea></div>
+
+<div class="exercise" data-id="p6-sla"></div>
+<div class="exercise" data-id="p6-oldest"></div>
+
+<h2>6. Errors, tracebacks and try/except</h2>
+
+<p>When Python hits an error it prints a <strong>traceback</strong>. It's the same idea as the
+JavaScript stack trace in Lesson 6, but upside down: Python says <em>"most recent call last"</em>,
+so <strong>read it from the bottom</strong>. The last line is the error; the line above it is
+where.</p>
+
+<div class="py"><textarea>def first_word(name):
+    return name.split()[0]
+
+print(first_word("Maya Okafor"))
+print(first_word(None))     # a user whose full_name is null</textarea></div>
+
+<p>The bottom line, <code>AttributeError: 'NoneType' object has no attribute 'split'</code>,
+is Python's version of "Cannot read properties of null." The errors you'll see most:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Error</th><th>Usually means</th></tr>
+  <tr><td><code>SyntaxError</code>, <code>IndentationError</code></td><td>A missing colon, bracket or quote, or indentation that doesn't line up</td></tr>
+  <tr><td><code>NameError</code></td><td>A misspelled variable, or using it before it's defined</td></tr>
+  <tr><td><code>KeyError: 'x'</code></td><td>A dict has no key <code>'x'</code>; use <code>.get()</code> if it might be missing</td></tr>
+  <tr><td><code>TypeError</code></td><td>Wrong kind of value, like <code>"5" + 1</code></td></tr>
+  <tr><td><code>AttributeError: 'NoneType'…</code></td><td>Something you expected to have a value is None</td></tr>
+  <tr><td><code>ValueError</code></td><td>Right type, bad value, like <code>int("12.50")</code></td></tr>
+</table>
+</div>
+
+<p>When you <em>expect</em> something might fail (a bad row in a file, a network error), catch
+it with <code>try</code> / <code>except</code> and decide what to do instead of crashing:</p>
+
+<div class="py"><textarea>for raw in ["1250", "12.50", "abc"]:
+    try:
+        cents = int(raw)
+        print(raw, "->", cents)
+    except ValueError:
+        print(raw, "-> not a whole number, skipping")</textarea></div>
+
+<p>Catch the specific error you expect (<code>except ValueError</code>), not every error. A bare
+<code>except:</code> hides bugs you'd want to see.</p>
+
+<div class="exercise" data-id="p6-parse-amount"></div>
+
+<h2>7. Imports</h2>
+
+<p>Python's power is its libraries. Some come built in (the "standard library"); others you
+install with <code>pip</code>, as this course did for you:</p>
+
+<div class="py"><textarea>import json                       # built in: JSON
+from datetime import date         # built in: dates
+from collections import Counter   # built in: counting made easy
+
+data = json.loads('{"status": "open", "tags": ["export"]}')   # text -> dict
+print(data["tags"])
+print(json.dumps(data, indent=2))                              # dict -> text
+
+print(Counter(["open", "open", "pending", "solved", "open"]).most_common(2))
+print(date(2026, 10, 30) - date(2026, 10, 27))</textarea></div>
+
+<p>You'll use <code>json</code>, <code>csv</code>, <code>datetime</code>,
+<code>collections</code>, <code>pathlib</code>, <code>os</code> and <code>argparse</code> from
+the standard library, and <code>requests</code> and <code>psycopg</code> from pip. That's
+enough to automate most of what a support team does by hand.</p>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>None</code> is null; test it with <code>is None</code>. <code>True</code>/<code>False</code> are capitalized.</li>
+  <li>f-strings: <code>f"#{id} {subject}"</code>. Strings have <code>.strip() .lower() .split()</code>, and <code>in</code>.</li>
+  <li>Lists <code>[]</code> are ordered; dicts <code>{}</code> are JSON objects. Use <code>d.get("k")</code> when a key might be missing.</li>
+  <li>Indentation is syntax. <code>if/elif/else</code>, <code>for x in items:</code>, <code>def f(x):</code> all end in a colon.</li>
+  <li>Comprehensions: <code>[x["id"] for x in items if x["status"] == "open"]</code>.</li>
+  <li>Read tracebacks from the bottom. Catch the specific errors you expect.</li>
+</ul>
+
+<p>That's the language. Everything from here on is building things with it.</p>
+
+</main>
+</body>
+</html>

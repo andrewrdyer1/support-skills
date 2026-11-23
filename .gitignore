@@ -1,0 +1,8 @@
+node_modules/
+data/
+logs/*.log
+.venv/
+__pycache__/
+.pytest_cache/
+workspace/data/
+workspace/**/out/

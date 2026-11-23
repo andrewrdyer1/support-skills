@@ -1,0 +1,412 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Files and Your First Script</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="10">
+<main>
+
+<p class="kicker">Lesson 10 · Python basics, part 4 · about 60 minutes</p>
+<h1>Files and your first script</h1>
+<p class="lede">Support data arrives as files: a customer's CSV export, a JSON log, an API
+response saved to disk. This lesson is about getting that data into Python, one piece at a
+time, then putting your functions together into a script you run from the terminal. It ends
+with the same data in a notebook.</p>
+
+<h2>1. import: using code that isn't yours</h2>
+
+<p>Python starts with only the basics loaded. Everything else lives in
+<strong>modules</strong>, and <code>import</code> loads one so you can use what's inside it.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Then use it as</th><th>Means</th></tr>
+  <tr><td><code>import csv</code></td><td><code>csv.DictReader(…)</code></td><td>load the whole module; reach in with a dot</td></tr>
+  <tr><td><code>from datetime import date</code></td><td><code>date.today()</code></td><td>load just one thing, and use it by its own name</td></tr>
+</table>
+</div>
+
+<p>Imports go at the top of the file. Some modules come with Python, the <strong>standard
+library</strong>, so there's nothing to install. The ones support scripts use most:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Module</th><th>For</th></tr>
+  <tr><td><code>csv</code></td><td>reading and writing spreadsheet-style files</td></tr>
+  <tr><td><code>json</code></td><td>turning JSON text into dicts and lists, and back</td></tr>
+  <tr><td><code>datetime</code></td><td>dates and times, and the gap between them</td></tr>
+  <tr><td><code>sys</code></td><td>what was typed on the command line, and exit codes</td></tr>
+  <tr><td><code>collections</code></td><td><code>Counter</code>, a shortcut for counting by group</td></tr>
+</table>
+</div>
+
+<div class="py"><textarea>import json                     # the whole module
+from datetime import date       # just one thing from a module
+
+print(json.dumps({"id": 1152, "status": "open"}))   # a dict turned into JSON text
+print(date.today())</textarea></div>
+
+<p>Libraries that <em>don't</em> come with Python, like <code>requests</code> for calling APIs,
+are installed with <strong>pip</strong>, into the active environment (the <code>.venv</code> you
+activated in Lesson 7):</p>
+
+<pre>pip install requests              # one library
+pip install -r requirements.txt   # everything a project lists
+pip list                          # what's installed here</pre>
+
+<p>A project's <code>requirements.txt</code> lists the libraries it needs, so anyone can set it
+up with one command. The course has one: open it and you'll see <code>requests</code> and
+<code>pytest</code>. If you see <code>ModuleNotFoundError: No module named '…'</code>, it almost
+always means "not installed in <em>this</em> environment" or "environment not active".</p>
+
+<h2>2. Where Python looks for a file</h2>
+
+<p>When you write <code>open("data/harbor_invoices.csv")</code>, that's a <strong>relative
+path</strong>: Python starts looking in the folder you were <em>in</em> when you ran the script,
+not the folder the script lives in. That folder is called the <strong>working
+directory</strong>. <code>pwd</code> in the terminal shows it.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>You're in</th><th>You run</th><th><code>"data/harbor_invoices.csv"</code> means</th></tr>
+  <tr><td><code>support-skills/workspace</code></td><td><code>python lesson10/invoice_summary.py …</code></td><td><code>workspace/data/harbor_invoices.csv</code>: found</td></tr>
+  <tr><td><code>support-skills</code></td><td><code>python workspace/lesson10/invoice_summary.py …</code></td><td><code>support-skills/data/harbor_invoices.csv</code>: <code>FileNotFoundError</code></td></tr>
+</table>
+</div>
+
+<p>Same script, same file, different folder, different result. So when a file "obviously
+exists" and Python can't find it, check where you ran from. In this course: always from
+<code>workspace</code>. The boxes on these pages run from there too.</p>
+
+<div class="py"><textarea>import os
+
+print(os.getcwd())                         # the working directory these boxes run in
+print(os.listdir("data"))                  # what's in its data folder
+open("data/no_such_file.csv")              # FileNotFoundError, with the path it tried</textarea></div>
+
+<p>An <strong>absolute path</strong> starts from the top of the disk, like
+<code>/Users/you/Developer/support-skills/workspace/data/harbor_invoices.csv</code>. It works
+from anywhere, but only on your machine, so scripts take paths as relative or from the command
+line instead (section 7).</p>
+
+<h2>3. Opening and reading a file</h2>
+
+<p>Every file read in Python looks like this:</p>
+
+<pre>with open("data/harbor_invoices.csv") as f:
+│    │                                 └ as f: call the open file f (any name works)
+│    └ open(path): open the file for reading and give back a file object
+└ with: keep it open for the indented block, then close it, even if something crashes
+
+    lines = f.readlines()     # inside the block: read from f</pre>
+
+<p>The <strong>file object</strong> <code>f</code> is a handle on the file, not its contents.
+You read from it with one of these:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Gives you</th><th>Good for</th></tr>
+  <tr><td><code>f.read()</code></td><td>the whole file as one string</td><td>small files you'll search as text</td></tr>
+  <tr><td><code>f.readlines()</code></td><td>a list of strings, one per line</td><td>counting lines, picking out line 1</td></tr>
+  <tr><td><code>for line in f:</code></td><td>one line at a time</td><td>big files: logs, long exports</td></tr>
+  <tr><td><code>f.readline()</code></td><td>just the next line</td><td>reading a header, or one sample</td></tr>
+</table>
+</div>
+
+<p>Each line keeps its line break at the end, written <code>\n</code>. That's why
+<code>.strip()</code> appears so often when reading files:</p>
+
+<div class="py"><textarea>with open("data/harbor_invoices.csv") as f:
+    lines = f.readlines()
+
+print(len(lines), "lines")
+print(repr(lines[0]))           # repr shows the \n at the end
+print(repr(lines[0].strip()))   # strip removes it
+print(lines[1].strip())</textarea></div>
+
+<p>Once the <code>with</code> block ends, the file is closed, but <code>lines</code> is an
+ordinary list and you can keep using it. Read inside the block; work with the result after.</p>
+
+<div class="exercise" data-id="py4-lines"></div>
+
+<h2>4. CSV files</h2>
+
+<p>A CSV is a text file where each line is a row and commas separate the columns. The first line
+is usually the <strong>header</strong>, naming the columns. The start of Maya's export:</p>
+
+<pre>Number,Client,Status,Amount,Currency,Issued,Due,Paid on
+INV-0001,Westfield Motors,paid,713.50,USD,2025-11-04,2025-12-04,2025-12-04
+INV-0002,Greenway Farms,paid,3968.00,USD,2025-11-13,2025-12-28,2025-12-30</pre>
+
+<p>You could <code>.split(",")</code> each line yourself, but a client called <code>"Smith,
+Jones &amp; Co"</code> has a comma in its name, and CSVs put quotes around values like that.
+Splitting on commas would cut the name in two. The <code>csv</code> module handles the quoting
+for you, and <code>csv.DictReader</code> goes one better: it gives you each row as a dict.</p>
+
+<div class="py"><textarea>import csv
+
+with open("data/harbor_invoices.csv") as f:
+    for row in csv.DictReader(f):
+        if row["Status"] == "overdue":
+            print(row["Number"], row["Client"], row["Amount"])</textarea></div>
+
+<p>Line by line:</p>
+
+<ol>
+  <li><code>import csv</code> loads the CSV toolkit.</li>
+  <li><code>with open(…) as f:</code> opens the file as <code>f</code>, and closes it when the
+    block ends.</li>
+  <li><code>csv.DictReader(f)</code> reads the <strong>first line as the column names</strong>,
+    then turns every line after it into a dict with those names as keys:<br>
+    <code>{"Number": "INV-0044", "Client": "Lakeshore Group", "Status": "overdue", "Amount":
+    "4171.00", …}</code><br>
+    The <code>for</code> loop hands you one of those dicts at a time as <code>row</code>. The
+    header line never comes through as a row of its own.</li>
+  <li><code>if row["Status"] == "overdue":</code> looks up the Status for this row and keeps
+    going only when it's exactly <code>"overdue"</code>. This is <code>where status =
+    'overdue'</code>, one row at a time.</li>
+  <li><code>print(…)</code> shows three of the row's values, with spaces between them.</li>
+</ol>
+
+<p>Read as a whole: open the invoices; for each row, as a dict keyed by the header; if it's
+overdue, print its number, client and amount. It's <code>select number, client, amount from
+invoices where status = 'overdue'</code>, written as a loop.</p>
+
+<div class="box careful">
+  <span class="tag">Everything from a CSV is text</span>
+  <p>A CSV has no types. <code>row["Amount"]</code> is <code>"4171.00"</code>, a string, so
+  adding amounts glues text together or crashes. Convert first, with Lesson 7's tools:</p>
+  <div class="tablewrap">
+  <table class="ref">
+    <tr><th>Column holds</th><th>Convert with</th></tr>
+    <tr><td>money, decimals</td><td><code>float(row["Amount"])</code></td></tr>
+    <tr><td>whole numbers, ids</td><td><code>int(row["Seats"])</code></td></tr>
+    <tr><td>text</td><td>nothing, but often <code>.strip()</code>, and <code>.lower()</code> before comparing</td></tr>
+    <tr><td>an empty cell</td><td>it's <code>""</code>, not <code>None</code>; <code>float("")</code> is a <code>ValueError</code></td></tr>
+  </table>
+  </div>
+  <p>And the keys match the header <em>exactly</em>: capitals and spaces count.
+  <code>row["status"]</code> is a <code>KeyError</code> when the header says <code>Status</code>,
+  and the last column here is <code>row["Paid on"]</code>, with the space.</p>
+</div>
+
+<div class="py"><textarea>import csv
+
+with open("data/harbor_invoices.csv") as f:
+    rows = list(csv.DictReader(f))    # list() reads every row in one go
+
+first = rows[0]
+print(len(rows), "rows")
+print(first)
+print(type(first["Amount"]), repr(first["Amount"]))
+print(float(first["Amount"]) + 10)</textarea></div>
+
+<div class="exercise" data-id="py3-read-csv"></div>
+<div class="exercise" data-id="py4-csv-total"></div>
+
+<h2>5. JSON</h2>
+
+<p>JSON is the format APIs send and logs are often written in. You met it in Lesson 5. To
+Python, JSON arriving from a file or an API is just <strong>text</strong>, until you turn it
+into dicts and lists with <code>json.loads</code> ("load string"). <code>json.dumps</code> goes
+the other way.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>JSON</th><th>Becomes in Python</th></tr>
+  <tr><td><code>{"id": 1152}</code> (an object)</td><td>a dict</td></tr>
+  <tr><td><code>[1, 2, 3]</code> (an array)</td><td>a list</td></tr>
+  <tr><td><code>"open"</code></td><td>a string</td></tr>
+  <tr><td><code>500</code>, <code>12.5</code></td><td>an int, a float. Unlike CSV, JSON numbers arrive as numbers.</td></tr>
+  <tr><td><code>true</code>, <code>false</code></td><td><code>True</code>, <code>False</code></td></tr>
+  <tr><td><code>null</code></td><td><code>None</code></td></tr>
+</table>
+</div>
+
+<p>The course's logs are one JSON object per line, a format called <strong>JSON lines</strong>.
+So you read the file line by line and <code>json.loads</code> each one:</p>
+
+<div class="py"><textarea>import json
+
+with open("data/history.log") as f:
+    first = f.readline()
+
+print(type(first), first[:80], "…")    # just text so far
+entry = json.loads(first)
+print(type(entry))                      # now a dict
+print(entry["time"], entry.get("status"), entry.get("path"))</textarea></div>
+
+<p>Log lines aren't all the same shape. Request lines have a <code>status</code>; a deploy note
+doesn't. That's what <code>.get()</code> is for: <code>entry.get("status")</code> gives
+<code>None</code> on a line without one, where <code>entry["status"]</code> would crash.</p>
+
+<div class="exercise" data-id="py3-json"></div>
+
+<h2>6. Writing a file</h2>
+
+<p>Writing looks like reading with one extra argument. <code>"w"</code> means write: it creates
+the file, or <strong>replaces</strong> it if it already exists.</p>
+
+<pre>with open("overdue.txt", "w") as f:
+    f.write("INV-0044 Lakeshore Group\n")   # write doesn't add a line break; \n does
+    f.write("INV-0040 Westfield Motors\n")</pre>
+
+<p>Use <code>"a"</code> instead of <code>"w"</code> to add to the end of a file without wiping it.
+Lesson 12 writes a CSV with <code>csv.writer</code>, which is the same idea with commas handled
+for you.</p>
+
+<h2>7. The shape of a real script</h2>
+
+<p>Almost every script you'll write or read at work is laid out the same way:</p>
+
+<pre>"""What this script is for, and how to run it."""   # 1. a docstring at the top
+import csv                                          # 2. imports
+import sys
+
+def read_invoices(path):                            # 3. small functions, one job each
+    ...
+
+def main():                                         # 4. main() runs the steps in order
+    path = sys.argv[1]
+    ...
+    return 0
+
+if __name__ == "__main__":                          # 5. run main() when run as a script
+    sys.exit(main())</pre>
+
+<p>The new pieces, one at a time:</p>
+
+<ul>
+  <li><strong>The docstring</strong> is a string in triple quotes at the very top. It does
+    nothing when the script runs; it's there for the next person to read, and they often say
+    how to run the script.</li>
+  <li><strong><code>sys.argv</code></strong> is a list of the words typed on the command line.
+    For <code>python lesson10/invoice_summary.py data/harbor_invoices.csv</code>, it's
+    <code>["lesson10/invoice_summary.py", "data/harbor_invoices.csv"]</code>. Item 0 is always the
+    script itself, so the first thing you typed after it is <code>sys.argv[1]</code>. That's
+    how one script works on any file you give it. (Lesson 14 upgrades this to proper options like
+    <code>--dry-run</code>.)</li>
+  <li><strong><code>main()</code></strong> is an ordinary function. By convention it's the one
+    that does the steps in order and the only one that prints the results; the other functions
+    work things out and return.</li>
+  <li><strong><code>if __name__ == "__main__":</code></strong> means "only when this file is run
+    directly". When a test file <em>imports</em> your script to check its functions,
+    <code>main()</code> doesn't run. Copy the line as it is; nearly every Python script ends with
+    it.</li>
+  <li><strong><code>sys.exit(main())</code></strong> passes main's return value back as the
+    <strong>exit code</strong>: 0 for success, anything else for failure. Schedulers and other
+    scripts use it to tell whether a run worked.</li>
+</ul>
+
+<h2>8. Your first real script</h2>
+
+<p>Open <code>workspace/lesson10/invoice_summary.py</code>. The <code>main()</code> function is
+written; four small functions have <code># TODO</code>s. Each one uses something from this
+lesson or the last:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Function</th><th>Job</th><th>Uses</th></tr>
+  <tr><td><code>read_invoices(path)</code></td><td>the CSV's rows as a list of dicts</td><td>section 4: <code>with open</code>, <code>csv.DictReader</code>, <code>list()</code></td></tr>
+  <tr><td><code>count_by_status(invoices)</code></td><td><code>{"paid": 36, …}</code></td><td>Lesson 8's group-by: <code>counts.get(k, 0) + 1</code></td></tr>
+  <tr><td><code>unpaid(invoices)</code></td><td>only the sent and overdue rows</td><td>a loop, an <code>if … in (…)</code>, <code>.append</code></td></tr>
+  <tr><td><code>total(invoices)</code></td><td>the Amount column added up</td><td>a running total, and <code>float()</code>: the amounts are text</td></tr>
+</table>
+</div>
+
+<p>Run it first, from <code>workspace</code>, before you change anything:</p>
+
+<pre>cd ~/Developer/support-skills/workspace
+source ../.venv/bin/activate
+python lesson10/invoice_summary.py data/harbor_invoices.csv</pre>
+
+<p>It runs and prints <code>0 invoices</code>, because <code>read_invoices</code> doesn't read
+anything yet. Fill in the functions top to bottom, and run the script after each one, so you
+see the output change. The docstring at the top shows what the finished output looks like. If
+you're stuck for more than ten minutes, compare with
+<code>course/solutions/lesson10/invoice_summary.py</code>.</p>
+
+<div class="find" data-check="py3-summary"></div>
+
+<h2>9. Notebooks</h2>
+
+<p>A script is for a job you'll run again. A <strong>notebook</strong> is for poking at data to
+find out what's going on: code in cells, run one at a time, with each result shown right under
+its cell. CX operations teams live in them; so do analysts. The common ones are
+<strong>Jupyter</strong> (which Cursor and VS Code open directly), <strong>Google Colab</strong>
+(Jupyter in a browser, free with a Google account), and hosted tools like Hex.</p>
+
+<p>Open <code>workspace/lesson10/explore.ipynb</code> in Cursor:</p>
+
+<ol>
+  <li>If Cursor offers to install the Jupyter extension, accept.</li>
+  <li>Click <strong>Select Kernel</strong> (top right) → <strong>Python Environments</strong> →
+    the one in <code>support-skills/.venv</code>. The <strong>kernel</strong> is the Python that
+    runs the cells; it needs to be the course's environment so the libraries are there.</li>
+  <li>Click into the first cell and press <kbd>Shift</kbd> <kbd>Enter</kbd> to run it and move on.
+    Run each cell in order.</li>
+</ol>
+
+<p>Notice two differences from a script. The last line of a cell is displayed without
+<code>print</code>. And variables stay alive between cells, so you can try something, look,
+and change one cell without starting over. That's what makes notebooks good for exploring, and
+also what makes them messy: run cells out of order and the results stop matching the code. When
+an exploration becomes a job you'll repeat, turn it into a script.</p>
+
+<div class="find" data-check="py3-notebook"></div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>import</code> the standard library; <code>pip install</code> everything else into the active environment.</li>
+  <li>Relative paths start from the folder you ran from. In this course, that's <code>workspace</code>.</li>
+  <li><code>with open(path) as f:</code> reads; <code>open(path, "w")</code> writes (and replaces). Lines end in <code>\n</code>; <code>.strip()</code> it.</li>
+  <li><code>csv.DictReader</code> gives each row as a dict keyed by the header. Every value is text: convert before math.</li>
+  <li><code>json.loads</code> turns JSON text into dicts and lists; <code>null</code> becomes <code>None</code>.</li>
+  <li>A script: docstring, imports, small functions, <code>main()</code>, <code>if __name__ == "__main__":</code>. <code>sys.argv[1]</code> is the first thing typed after the script.</li>
+  <li>Notebooks for exploring, scripts for jobs you'll run again.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">What's next</span>
+  <p>You now know enough Python to read and write real scripts. Lesson 11 is a fast pass over the
+  same ground that adds three shortcuts you'll see everywhere (comprehensions, sorting with
+  <code>key=</code>, and <code>try</code>/<code>except</code>). Lessons 12 to 15 build the scripts
+  support teams actually use, with tests.</p>
+</div>
+
+</main>
+<script>
+window.COURSE_CHECKS = {
+  "py3-summary": {
+    kind: "In your editor",
+    prompt: "<p>What <strong>outstanding</strong> total does your finished script print?</p>",
+    placeholder: "$…",
+    hints: ["<code>read_invoices</code>: inside <code>with open(path) as f:</code>, <code>return list(csv.DictReader(f))</code>.", "<code>count_by_status</code> is Lesson 8's group-by pattern, on <code>invoice[\"Status\"]</code>.", "<code>unpaid</code> keeps rows whose Status is <code>in (\"sent\", \"overdue\")</code>. <code>total</code> adds <code>float(invoice[\"Amount\"])</code>: the amounts are text."],
+    solutionText: "$15,993.50",
+    check: (v) => {
+      const n = Number(v.replace(/[$,\s]/g, ""))
+      if (Math.abs(n - 15993.5) < 0.005) return true
+      if (Math.abs(n - 11822.5) < 0.005) return "That's only the overdue invoices. Outstanding means sent or overdue."
+      if (n === 0) return "0 means a function still has its TODO. Which one returns nothing?"
+      return "Not that. The printout should also say 44 invoices; if it doesn't, start with read_invoices."
+    },
+    success: "$15,993.50 across 7 unpaid invoices. A real script: arguments in, a file read, grouped and totaled, a clear summary out.",
+  },
+  "py3-notebook": {
+    kind: "In the notebook",
+    prompt: "<p>Do the notebook's \"Your turn\": which client has the most invoices?</p>",
+    placeholder: "client name",
+    hints: ["The status count cell shows the pattern. Count <code>row[\"Client\"]</code> instead of <code>row[\"Status\"]</code>.", "<code>Counter(...).most_common(1)</code> gives the top one."],
+    solutionText: "Lakeshore Group (9 invoices)",
+    check: (v) => /lakeshore/i.test(v) || (/westfield/i.test(v) ? "Westfield Motors is second, with 8. One client has more." : "Not that one. Count invoices by Client."),
+    success: "Lakeshore Group, with 9. One changed cell, one answer: that's what notebooks are good at.",
+  },
+}
+</script>
+</body>
+</html>

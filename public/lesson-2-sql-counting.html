@@ -1,0 +1,307 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Counting Things</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="2">
+<main>
+
+<p class="kicker">Lesson 2 · SQL aggregates, grouping and dates · about 45 minutes</p>
+<h1>Counting things</h1>
+<p class="lede">Lesson 1 found individual rows. Most questions a support lead asks are about
+<em>how many</em>, <em>how long</em> and <em>which ones most</em>. That's what this lesson
+is for.</p>
+
+<div class="box ticket">
+  <span class="tag">Slack · #support-leads · Friday</span>
+  <p>Can you pull this week's numbers for the Monday review? Open tickets, what people are
+  writing in about, how fast we're replying, and anything unusual. Thanks!</p>
+</div>
+
+<p>Every one of those is a single query once you know four ideas: <strong>aggregates</strong>,
+<strong>GROUP BY</strong>, <strong>dates</strong>, and <strong>CASE</strong>.</p>
+
+<div class="box tip">
+  <span class="tag">"Today" in Paperkite</span>
+  <p>In this dataset, today is <strong>Friday, October 30, 2026</strong>, and the last
+  ticket arrived that afternoon. The lessons write dates out explicitly
+  (<code>'2026-10-24'</code>) so the answers stay correct whenever you come back. In a real
+  job you'd usually write <code>now() - interval '7 days'</code> instead, which section 4
+  explains.</p>
+</div>
+
+<h2>1. Aggregates: one answer from many rows</h2>
+
+<p>An <strong>aggregate function</strong> takes a whole column of values and squashes it into
+one. The one you'll use most is <code>count</code>:</p>
+
+<div class="sql"><textarea>select count(*)
+from tickets;</textarea></div>
+
+<p>One row, one number: every ticket ever. Add a <code>where</code> and it counts only the
+rows that pass the filter. The other aggregates work the same way:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Function</th><th>Gives you</th></tr>
+  <tr><td><code>count(*)</code></td><td>how many rows</td></tr>
+  <tr><td><code>count(column)</code></td><td>how many rows where that column is <strong>not null</strong></td></tr>
+  <tr><td><code>count(distinct column)</code></td><td>how many different values</td></tr>
+  <tr><td><code>sum(column)</code></td><td>the total</td></tr>
+  <tr><td><code>avg(column)</code></td><td>the average (mean)</td></tr>
+  <tr><td><code>min(column)</code>, <code>max(column)</code></td><td>the smallest and largest; work on dates too (earliest, latest)</td></tr>
+</table>
+</div>
+
+<p>The difference between <code>count(*)</code> and <code>count(column)</code> is worth
+seeing once:</p>
+
+<div class="sql"><textarea>select count(*)                 as all_tickets,
+       count(first_response_at) as replied_to,
+       count(assignee)          as assigned,
+       count(distinct assignee) as agents
+from tickets;</textarea></div>
+
+<p><code>count(first_response_at)</code> skips the nulls, so it's "tickets that got a reply."
+The gap between the first two numbers is the tickets still waiting. And <code>as</code> gives
+a column a readable name, which matters as soon as anyone else reads your results.</p>
+
+<p>Aggregates skip nulls in general: <code>avg(x)</code> is the average of the rows that
+<em>have</em> an x. Usually that's what you want. Just know it's happening.</p>
+
+<div class="exercise" data-id="l2-open-count"></div>
+
+<h2>2. GROUP BY: one answer per group</h2>
+
+<p>"How many tickets per category?" needs a count for <em>each</em> category, not one
+overall. <code>group by</code> splits the rows into piles, one per distinct value, then runs
+the aggregate on each pile:</p>
+
+<div class="sql"><textarea>select category, count(*)
+from tickets
+group by category
+order by count(*) desc;</textarea></div>
+
+<p>The rule that makes <code>group by</code> click: <strong>every column in your
+<code>select</code> must either be in the <code>group by</code> or be inside an
+aggregate.</strong> Try adding <code>priority</code> to the select list above without
+grouping by it, and read the error. Postgres is saying "you made one row per category; which
+of that category's many priorities should I show?" Either group by it too (one row per
+category <em>and</em> priority), or aggregate it.</p>
+
+<div class="sql"><textarea>-- One row per category AND priority:
+select category, priority, count(*)
+from tickets
+group by category, priority
+order by category, priority;</textarea></div>
+
+<div class="exercise" data-id="l2-category"></div>
+
+<h3>HAVING: filtering the groups</h3>
+
+<p><code>where</code> filters rows <em>before</em> they're grouped. To filter on the result of
+an aggregate (only categories with more than 100 tickets, only customers with 5 or more),
+you need <code>having</code>, which runs <em>after</em> grouping:</p>
+
+<div class="sql"><textarea>select account_id, count(*) as tickets
+from tickets
+group by account_id
+having count(*) >= 10
+order by tickets desc;</textarea></div>
+
+<p>The full order of clauses is now:</p>
+
+<pre>select … from … join … where … group by … having … order by … limit …</pre>
+
+<p>And joins work exactly as before. Join <code>accounts</code> to show names instead of ids,
+then group by the name.</p>
+
+<div class="exercise" data-id="l2-having"></div>
+
+<h2>3. Averages, rounding, and the integer trap</h2>
+
+<p>Before dates, one trap that catches everyone computing a percentage:</p>
+
+<div class="sql"><textarea>select 1 / 2       as whole_numbers,
+       1 / 2.0     as with_a_decimal,
+       100 * 3 / 7 as pct_wrong,
+       round(100.0 * 3 / 7, 1) as pct_right;</textarea></div>
+
+<p>Divide one whole number by another and Postgres gives you a whole number, throwing the
+remainder away. <code>1 / 2</code> is <code>0</code>. Counts are whole numbers, so
+<code>count(*) filter (…) / count(*)</code> is almost always zero. Put a decimal in
+(<code>100.0 *</code>) and the math stays decimal. <code>round(value, 1)</code> keeps one
+decimal place.</p>
+
+<h2>4. Dates and times</h2>
+
+<p>Support data is full of timestamps: when a ticket arrived, when someone replied, when it
+was solved. Here's what you need.</p>
+
+<h3>Filtering by date</h3>
+
+<p>Write a date as text in <code>YYYY-MM-DD</code> form and Postgres converts it. For a date
+range, the safest pattern is "on or after the start, strictly before the day after the end":</p>
+
+<div class="sql"><textarea>-- Every ticket created in October 2026:
+select count(*)
+from tickets
+where created_at >= '2026-10-01'
+  and created_at <  '2026-11-01';</textarea></div>
+
+<div class="box careful">
+  <span class="tag">Why not between?</span>
+  <p><code>created_at between '2026-10-01' and '2026-10-31'</code> looks right and is wrong.
+  <code>'2026-10-31'</code> means midnight at the <em>start</em> of the 31st, so every ticket
+  from the 31st after 12:00 AM is left out. The "before the next day" pattern can't make that
+  mistake.</p>
+</div>
+
+<h3>Time between two timestamps</h3>
+
+<p>Subtract one timestamp from another and you get an <strong>interval</strong>:</p>
+
+<div class="sql"><textarea>select id, priority, created_at, first_response_at,
+       first_response_at - created_at as waited
+from tickets
+where first_response_at is not null
+order by created_at desc
+limit 8;</textarea></div>
+
+<p>An interval reads nicely but you can't average it into "hours" directly. To get a plain
+number, pull the seconds out with <code>extract(epoch from …)</code> and divide by 3600:</p>
+
+<div class="sql"><textarea>select id, priority,
+       round(extract(epoch from first_response_at - created_at) / 3600, 1) as hours_to_reply
+from tickets
+where first_response_at is not null
+order by created_at desc
+limit 8;</textarea></div>
+
+<p>You can also compare against an interval directly: <code>first_response_at - created_at
+&lt;= interval '4 hours'</code>. And you can do arithmetic with one:
+<code>now() - interval '7 days'</code> is "a week ago," which is how real reports usually
+say "this week."</p>
+
+<div class="exercise" data-id="l2-avg"></div>
+
+<h3>Grouping by day</h3>
+
+<p>A timestamp includes the time, so grouping by <code>created_at</code> gives you one group
+per second. Turn it into a plain date first. <code>::date</code> converts ("casts") a value to
+a date:</p>
+
+<div class="sql"><textarea>select created_at::date as day, count(*)
+from tickets
+where created_at >= '2026-10-24'
+group by day
+order by day;</textarea></div>
+
+<p>For weeks or months, <code>date_trunc('week', created_at)</code> rounds every timestamp down
+to the start of its week (or <code>'month'</code>, <code>'hour'</code>…). Try swapping it in
+above and removing the <code>where</code>.</p>
+
+<div class="exercise" data-id="l2-per-day"></div>
+<div class="exercise" data-id="l2-agents"></div>
+
+<h2>5. CASE: your own categories</h2>
+
+<p><code>case</code> is SQL's if/else. It checks conditions in order and gives back the value
+for the first one that's true:</p>
+
+<div class="sql"><textarea>select subject,
+       first_response_at - created_at as waited,
+       case
+         when first_response_at is null then 'no reply yet'
+         when first_response_at - created_at < interval '1 hour' then 'under 1 hour'
+         when first_response_at - created_at < interval '4 hours' then '1 to 4 hours'
+         else '4 hours or more'
+       end as wait
+from tickets
+order by created_at desc
+limit 10;</textarea></div>
+
+<p>Order matters: a 30-minute wait passes the second test and stops there, so it's never
+labeled "1 to 4 hours." Put the null check first, because a null passes none of the
+comparisons and would fall through to <code>else</code>.</p>
+
+<p>The real power is grouping by your <code>case</code>, which turns raw timestamps into a
+report a person can read at a glance:</p>
+
+<div class="exercise" data-id="l2-case"></div>
+
+<h3>FILTER: counting several things at once</h3>
+
+<p>Often you want "how many in total, and how many of those met some condition" side by side.
+Postgres has a neat way to do it, <code>count(*) filter (where …)</code>:</p>
+
+<div class="sql"><textarea>select priority,
+       count(*) as tickets,
+       count(*) filter (where status in ('open', 'pending')) as still_open
+from tickets
+group by priority;</textarea></div>
+
+<p>(Other databases don't have <code>filter</code>. The portable spelling is
+<code>sum(case when status in ('open', 'pending') then 1 else 0 end)</code>. Same answer,
+more typing. You'll see both.)</p>
+
+<div class="exercise" data-id="l2-sla"></div>
+
+<h2>6. Beyond the support queue</h2>
+
+<p>The same tools answer questions about the business, which is why CX operations teams use
+SQL as much as engineers do. Prices live in <code>plans</code>, so join to them:</p>
+
+<div class="exercise" data-id="l2-mrr"></div>
+
+<p>One more, and it's the "anything unusual" part of your lead's request. The
+<code>events</code> table records every time someone starts a CSV export, and every time one
+fails:</p>
+
+<div class="sql"><textarea>select created_at::date as day, name, count(*)
+from events
+where name in ('export_started', 'export_failed')
+  and created_at >= '2026-10-20'
+group by day, name
+order by day, name;</textarea></div>
+
+<p>Look at the <code>export_failed</code> rows. Before the 28th there are none.</p>
+
+<div class="exercise" data-id="l2-export-failed"></div>
+
+<div class="box job">
+  <span class="tag">What you'd post back</span>
+  <p><em>This week: 71 tickets open. October volume led by how-to (111) and billing (108).
+  First replies average 0.7 h for urgent and 7.7 h for normal. Something new since Wednesday:
+  CSV exports started failing on Oct 28, 10 accounts so far, and we have at least three
+  tickets about it. I'm digging into it now.</em></p>
+  <p>Numbers first, one line each, and the unusual thing called out with what you're doing
+  about it. That last line is Lesson 6.</p>
+</div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>count(*)</code> counts rows; <code>count(column)</code> skips nulls; <code>count(distinct …)</code> counts different values.</li>
+  <li><code>group by</code> makes one row per group. Everything you select is grouped or aggregated.</li>
+  <li><code>where</code> filters rows before grouping; <code>having</code> filters groups after.</li>
+  <li>Whole number ÷ whole number = whole number. Use <code>100.0 *</code> for percentages.</li>
+  <li>Date ranges: <code>&gt;= start and &lt; day after end</code>. Subtracting timestamps gives an interval; <code>extract(epoch from …) / 3600</code> turns it into hours.</li>
+  <li><code>case when … then … end</code> makes your own categories; <code>count(*) filter (where …)</code> counts a subset alongside the total.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">Interview prep</span>
+  <p>A favorite interview question: "What's the difference between WHERE and HAVING?" Your
+  answer: WHERE filters individual rows before they're grouped; HAVING filters the groups
+  afterwards, so it's the only one that can use an aggregate like <code>count(*)</code>.
+  Another: "Why does this percentage come out as 0?" (integer division).</p>
+</div>
+
+</main>
+</body>
+</html>

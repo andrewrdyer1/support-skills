@@ -1,0 +1,496 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Functions and Errors</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="9">
+<main>
+
+<p class="kicker">Lesson 9 · Python basics, part 3 · about 60 minutes</p>
+<h1>Functions and errors</h1>
+<p class="lede">Every script you'll meet at work is built from small functions, and every script
+you write will crash a few times on the way. This lesson takes functions one idea at a time,
+with an example and a walkthrough before each exercise, then shows you how to read the error
+Python gives you when something breaks.</p>
+
+<h2>1. Why functions</h2>
+
+<p>A <strong>function</strong> is a named piece of code that does one job. You've been using
+other people's all along: <code>print()</code>, <code>len()</code>, <code>round()</code>. Now you
+write your own.</p>
+
+<p>Here's why it's worth it. Picture a 60-line script that reads an export, works out who owes
+money, and prints a summary. Written top to bottom, it's hard to follow and hard to fix.
+Written as five functions, called <code>read_invoices</code>, <code>unpaid</code>,
+<code>total</code>, <code>format_money</code> and <code>main</code>, you can read the names and
+know what it does, fix one piece without touching the others, and test each piece on its own.
+Lesson 12's tests do exactly that.</p>
+
+<h2>2. Defining a function, then calling it</h2>
+
+<p>There are two separate steps, and mixing them up is the most common confusion at the start.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Step</th><th>Looks like</th><th>What happens</th></tr>
+  <tr><td><strong>Define</strong></td><td><code>def ticket_label(ticket_id, subject):</code><br>plus an indented body</td><td>Python remembers the recipe under that name. <strong>Nothing in the body runs yet.</strong></td></tr>
+  <tr><td><strong>Call</strong></td><td><code>ticket_label(1152, "Export broken")</code></td><td>Python runs the body now, using these values, and the call turns into whatever the function returns.</td></tr>
+</table>
+</div>
+
+<p>The parts of a definition:</p>
+
+<pre>def ticket_label(ticket_id, subject):
+│   │            │                  └ a colon, then an indented body
+│   │            └ parameters: names for the inputs, in brackets
+│   └ the function's name: lowercase_with_underscores, a verb or a description
+└ def: "I'm defining a function"
+
+    return f"#{ticket_id}: {subject}"
+    └ return: the answer this function hands back</pre>
+
+<p>Run this box. It defines a function and never calls it, so it prints nothing at all. That's
+correct, not broken:</p>
+
+<div class="py"><textarea>def ticket_label(ticket_id, subject):
+    print("the body is running")
+    return f"#{ticket_id}: {subject}"
+
+# no call, so nothing above runs</textarea></div>
+
+<p>Now with calls added at the bottom:</p>
+
+<div class="py"><textarea>def ticket_label(ticket_id, subject):
+    return f"#{ticket_id}: {subject}"
+
+
+print(ticket_label(1152, "CSV export broken"))
+print(ticket_label(1188, "Card declined"))
+
+label = ticket_label(1201, "Logo upload")   # store the answer instead of printing it
+print(label.upper())</textarea></div>
+
+<p>What Python does on the first <code>print</code> line, step by step:</p>
+
+<ol>
+  <li>It sees <code>ticket_label(1152, "CSV export broken")</code> and jumps into the function.</li>
+  <li>Inside, <code>ticket_id</code> is <code>1152</code> and <code>subject</code> is
+    <code>"CSV export broken"</code>, for this call only.</li>
+  <li>The body runs. <code>return</code> sends back <code>"#1152: CSV export broken"</code>
+    and leaves the function.</li>
+  <li>Back on the calling line, the call is replaced by that answer, so the line is now
+    <code>print("#1152: CSV export broken")</code>, which runs.</li>
+</ol>
+
+<p>The second call does the same with new values. The function doesn't remember anything from
+the first call.</p>
+
+<div class="box tip">
+  <span class="tag">Order in the file</span>
+  <p>Python reads a file top to bottom, so a function has to be defined <em>above</em> the line
+  that calls it. That's why scripts put their functions first and the calls at the bottom. Call
+  one before its <code>def</code> and you get <code>NameError: name 'ticket_label' is not
+  defined</code>.</p>
+</div>
+
+<div class="exercise" data-id="py3-call"></div>
+
+<h2>3. Parameters and arguments</h2>
+
+<p>Two words for the two sides of the same thing:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Word</th><th>Where</th><th>In the example</th></tr>
+  <tr><td><strong>Parameter</strong></td><td>the placeholder names in the <code>def</code> line</td><td><code>ticket_id</code>, <code>subject</code></td></tr>
+  <tr><td><strong>Argument</strong></td><td>the actual values in a call</td><td><code>1152</code>, <code>"CSV export broken"</code></td></tr>
+</table>
+</div>
+
+<p>People mix the words up all the time and nobody minds. What matters is how they match up:
+<strong>by position</strong>. The first argument goes into the first parameter, the second into
+the second. Swap them and Python won't complain; you just get the wrong answer:</p>
+
+<div class="py"><textarea>def ticket_label(ticket_id, subject):
+    return f"#{ticket_id}: {subject}"
+
+
+print(ticket_label(1152, "Export broken"))    # #1152: Export broken
+print(ticket_label("Export broken", 1152))    # #Export broken: 1152  (swapped)
+print(ticket_label(1152))                     # TypeError: missing 1 required argument</textarea></div>
+
+<p>Read that last error: <code>ticket_label() missing 1 required positional argument:
+'subject'</code>. The number of arguments has to match the number of parameters (section 7
+shows how to make one optional).</p>
+
+<p>Parameter names are your choice and only exist inside the function. The caller's variables
+can have completely different names:</p>
+
+<div class="py"><textarea>def ticket_label(ticket_id, subject):
+    return f"#{ticket_id}: {subject}"
+
+
+number = 1188
+title = "Card declined"
+print(ticket_label(number, title))   # inside, ticket_id is 1188 and subject is "Card declined"</textarea></div>
+
+<div class="box careful">
+  <span class="tag">What a function can see</span>
+  <p>Variables made <em>inside</em> a function disappear when it returns. If a function sets
+  <code>total = 0</code> and adds to it, there is no <code>total</code> outside afterwards. Use
+  <code>return total</code> and store the answer: <code>t = add_up(amounts)</code>. Going the
+  other way, a function <em>can</em> read variables defined at the top of the file, like a
+  <code>PRICES</code> dict, but pass in what it needs as parameters wherever you can. That's
+  what lets a test call it with different data.</p>
+</div>
+
+<div class="exercise" data-id="py3-params"></div>
+
+<h2>4. return versus print</h2>
+
+<p>This is the mistake almost everyone makes at the start, because both seem to "give you the
+answer" when you run the code.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th></th><th><code>print(x)</code></th><th><code>return x</code></th></tr>
+  <tr><td>What it does</td><td>shows <code>x</code> on the screen</td><td>hands <code>x</code> back to the line that called the function</td></tr>
+  <tr><td>Can the caller use the value?</td><td>No. The call gives back <code>None</code>.</td><td>Yes: store it, compare it, add it up, print it</td></tr>
+  <tr><td>Does the function keep going?</td><td>yes</td><td>no, <code>return</code> ends it right there</td></tr>
+  <tr><td>Who should use it</td><td>the part of a script that shows the final result</td><td>every function that works something out</td></tr>
+</table>
+</div>
+
+<div class="py"><textarea>def total_printed(amounts):
+    print(sum(amounts))      # shows it, returns nothing
+
+
+def total_returned(amounts):
+    return sum(amounts)      # hands it back
+
+
+a = total_printed([10, 2.5])     # you see 12.5 on screen...
+b = total_returned([10, 2.5])
+print("a is", a)                 # ...but a is None
+print("b is", b)
+print("b doubled is", b * 2)
+print("a doubled is", a * 2)     # TypeError: None can't be doubled</textarea></div>
+
+<p><code>None</code> is what a function gives back when it never reaches a
+<code>return</code>. So when a value is unexpectedly <code>None</code>, the first thing to check
+is the function it came from: does every path through it end in a <code>return</code>?</p>
+
+<p>A <code>print</code> <em>inside</em> a function is fine while you're working out what's going
+on. Just make sure the answer leaves through <code>return</code>.</p>
+
+<div class="exercise" data-id="py3-return"></div>
+
+<h2>5. Returning True or False</h2>
+
+<p>Many functions answer a yes/no question: is this ticket urgent, does it have this tag, is this
+plan a paid one. A comparison is already <code>True</code> or <code>False</code>, so you can
+return it directly:</p>
+
+<div class="py"><textarea>print(3 > 2)                         # True: a comparison is a value
+print("export" in ["export", "bug"])  # True
+print("pro" == "free")               # False
+
+tags = ["export", "bug"]
+answer = "refund" in tags            # you can store it like any value
+print(answer)</textarea></div>
+
+<p>So these two functions do exactly the same thing. The first is fine while you're learning,
+since it spells out each step; the second is how you'll usually see it written:</p>
+
+<div class="py"><textarea>def has_tag_long(tags, tag):
+    if tag in tags:
+        return True
+    else:
+        return False
+
+
+def has_tag(tags, tag):
+    return tag in tags       # the comparison already is True or False
+
+
+print(has_tag_long(["export"], "export"), has_tag(["export"], "export"))
+print(has_tag_long(["export"], "refund"), has_tag(["export"], "refund"))</textarea></div>
+
+<p>Walk through <code>has_tag(["export"], "export")</code>: Python works out
+<code>"export" in ["export"]</code>, gets <code>True</code>, and returns it. When you catch
+yourself writing <code>return True</code> in one branch and <code>return False</code> in the other,
+that's the cue to return the condition itself.</p>
+
+<div class="exercise" data-id="py3-bool"></div>
+
+<h2>6. Returning early</h2>
+
+<p><code>return</code> leaves the function immediately, so you can deal with the awkward case
+first and get it out of the way. The rest of the function is then the normal case, without an
+<code>else</code>:</p>
+
+<div class="py"><textarea>PRICES = {"free": 0, "starter": 1500, "pro": 4900}
+
+
+def describe(plan):
+    price = PRICES.get(plan)
+    if price is None:                     # the awkward case: unknown plan
+        return f"unknown plan: {plan}"    # leave now
+    return f"{plan}: ${price / 100:.2f}/month"   # only reached when the plan exists
+
+
+print(describe("pro"))
+print(describe("free"))
+print(describe("gold"))</textarea></div>
+
+<p>This is called a <strong>guard</strong>: check for the bad case at the top, return, and the
+code below can assume things are fine. Real scripts are full of them.</p>
+
+<p>When you write the guard, choose the test carefully. Lesson 8's truthiness box applies:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Is true when</th><th>Use it when</th></tr>
+  <tr><td><code>if price is None:</code></td><td>there's no value at all</td><td><code>0</code> or empty is a real answer: prices, counts, amounts. A free plan costs 0.</td></tr>
+  <tr><td><code>if not name:</code></td><td>no value, <em>or</em> <code>0</code>, <code>""</code>, <code>[]</code></td><td>empty should count as nothing: a blank name, an empty list of tickets</td></tr>
+</table>
+</div>
+
+<p>The question to ask: "could this be 0 or empty and still be fine?" If yes, use
+<code>is None</code>. In <code>describe</code>, <code>if not price:</code> would call the free
+plan unknown.</p>
+
+<div class="exercise" data-id="py3-early"></div>
+
+<h2>7. Defaults and named arguments</h2>
+
+<p>A parameter can have a <strong>default</strong>, written <code>name=value</code> in the
+<code>def</code> line. If the caller leaves that argument out, the default is used. Parameters
+with defaults go after the ones without.</p>
+
+<div class="py"><textarea>def greeting(name, sign_off="Thanks"):
+    return f"Hi {name}, your export is fixed. {sign_off}, Alex"
+
+
+print(greeting("Maya"))                          # sign_off uses the default
+print(greeting("Maya", "Best"))                  # or pass your own
+print(greeting(name="Kai", sign_off="Cheers"))   # name the arguments
+print(greeting(sign_off="Cheers", name="Kai"))   # named ones can go in any order</textarea></div>
+
+<p>Naming arguments in a call is optional, but it makes calls like
+<code>export(path, True, False)</code> readable: <code>export(path, dry_run=True,
+notify=False)</code> says what each value is for.</p>
+
+<p>The next exercise formats money. A reminder from Lesson 7: format codes like
+<code>:,.2f</code> only work inside an f-string's curly brackets, so work out the number, then
+format it inside the f-string: <code>f"{symbol}{cents / 100:,.2f}"</code>. Written anywhere else,
+<code>:,.2f</code> is a <code>SyntaxError</code>.</p>
+
+<div class="exercise" data-id="py3-default"></div>
+
+<h2>8. A one-line if</h2>
+
+<p>When a function picks between two values, there's a short form called a
+<strong>conditional expression</strong>. The order is: the value if true, <code>if</code> the
+condition, <code>else</code> the value if false.</p>
+
+<div class="py"><textarea>hours_waiting = 30
+label = "urgent" if hours_waiting > 24 else "normal"
+print(label)
+
+count = 1
+print(f"{count} ticket" if count == 1 else f"{count} tickets")</textarea></div>
+
+<p>It's the same idea as SQL's <code>case when hours_waiting &gt; 24 then 'urgent' else 'normal'
+end</code>. The <code>else</code> is required, since the expression always has to produce a
+value. Keep it for short choices between two values; anything longer reads better as a normal
+<code>if</code>/<code>else</code> block.</p>
+
+<div class="exercise" data-id="py3-plural"></div>
+
+<h2>9. Functions that use other functions</h2>
+
+<p>Once a function exists, other functions can call it. That's how scripts are built: small
+pieces, each tested, then combined.</p>
+
+<div class="py"><textarea>def format_money(cents):
+    return f"${cents / 100:,.2f}"
+
+
+def balance_line(account):
+    return f"{account['name']} owes {format_money(account['balance_cents'])}"
+
+
+print(balance_line({"name": "Harbor & Pine Bakery", "balance_cents": 71350}))</textarea></div>
+
+<p>Two details in there. Inside an f-string that uses double quotes, the dict keys use single
+quotes (<code>account['name']</code>). Recent Python allows double quotes there too, but before
+version 3.12 that ended the string early, so you'll see single quotes in most code. And
+<code>balance_line</code> doesn't need to know how money is formatted; if that ever changes, you
+change <code>format_money</code> once.</p>
+
+<div class="box job">
+  <span class="tag">How the Check button tests your functions</span>
+  <p>When you click <strong>Check</strong>, hidden tests run after your code and call your
+  functions themselves, with <em>their own</em> data, often several times with awkward cases
+  (an empty list, a missing key, a zero). They're checking that the function works for any input,
+  not just the example at the bottom. Two things follow. If you leave a <code>print</code>
+  inside a function, you'll see the checker's values in the output, not yours. And a function
+  should only use what's passed in to it, never assume it's always Maya's ticket. Click
+  <strong>Run</strong> to see your own example; click <strong>Check</strong> to be tested.</p>
+</div>
+
+<div class="exercise" data-id="py3-compose"></div>
+
+<h2>10. Functions and methods</h2>
+
+<p>You've seen two ways of calling things: <code>len(statuses)</code> and
+<code>email.lower()</code>. The second kind, with a dot, is a <strong>method</strong>: a function
+that belongs to one type of value. They're the same thing underneath:</p>
+
+<div class="py"><textarea>email = "Sam@HarborAndPine.co"
+print(email.lower())       # method: the lower that belongs to strings
+print(str.lower(email))    # the very same function, called the long way</textarea></div>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th></th><th>Built-in functions</th><th>Methods</th></tr>
+  <tr><td>Written</td><td><code>len(x)</code></td><td><code>x.lower()</code></td></tr>
+  <tr><td>For</td><td>general jobs that work on many types</td><td>actions that belong to one type</td></tr>
+  <tr><td>Examples</td><td><code>len</code>, <code>sum</code>, <code>min</code>, <code>max</code>, <code>sorted</code>, <code>print</code>, <code>type</code>, <code>int</code>, <code>str</code>, <code>float</code>, <code>round</code></td><td>text: <code>.strip()</code>, <code>.split()</code>, <code>.replace()</code><br>lists: <code>.append()</code>, <code>.count()</code><br>dicts: <code>.get()</code>, <code>.items()</code></td></tr>
+</table>
+</div>
+
+<p>Why <code>len(x)</code> and not <code>x.len()</code>? Python's designers chose to make
+"how many" one function that works on text, lists and dicts alike. Other languages chose
+differently (JavaScript has <code>x.length</code>). There's no rule to work out; after a week of
+writing scripts the common ones stick. Guess wrong and Python says so:
+<code>AttributeError: 'list' object has no attribute 'len'</code>.</p>
+
+<p>The functions you write with <code>def</code> are the first kind, called by name. Writing your
+own methods means defining your own type (a "class"), which support scripts rarely need.</p>
+
+<details class="quiz">
+  <summary><code>sorted(statuses)</code> and <code>statuses.sort()</code> both sort. What's the difference?</summary>
+  <div class="answer"><p><code>sorted()</code> is a built-in function: it works on any collection
+  and gives you back a <em>new</em> sorted list, leaving the original alone.
+  <code>.sort()</code> is a list method: it rearranges that list itself and returns
+  <code>None</code>. So <code>x = statuses.sort()</code> leaves <code>x</code> as <code>None</code>,
+  a classic bug.</p></div>
+</details>
+
+<h2>11. When it breaks: reading a traceback</h2>
+
+<p>When Python hits an error it can't handle, it stops and prints a
+<strong>traceback</strong>: the chain of function calls that led to the error, oldest first.
+Functions are why it's a chain: <code>main</code> called <code>summarize</code>, which failed.
+Read it from the <strong>bottom</strong> up:</p>
+
+<pre>Traceback (most recent call last):
+  File "/Users/you/workspace/report.py", line 31, in &lt;module&gt;
+    main()
+  File "/Users/you/workspace/report.py", line 26, in main
+    print(summarize(rows))
+  File "/Users/you/workspace/report.py", line 14, in summarize
+    total += row["amount"]
+KeyError: 'amount'</pre>
+
+<ol>
+  <li><strong>The last line</strong> is what went wrong: the error's type and a detail. Here,
+    a dict had no key <code>'amount'</code>.</li>
+  <li><strong>The lines just above it</strong> are where: file, line number, the function it was
+    in, and the code on that line.</li>
+  <li><strong>Further up</strong> is how the script got there: the top level
+    (<code>&lt;module&gt;</code>) called <code>main</code>, which called
+    <code>summarize</code>. You usually only need this when the bottom frame is inside a library
+    rather than your own code.</li>
+</ol>
+
+<div class="find" data-check="py3-traceback"></div>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Error</th><th>Usually means</th></tr>
+  <tr><td><code>NameError: name 'x' is not defined</code></td><td>a typo in a name, using it before it's set, or calling a function above its <code>def</code></td></tr>
+  <tr><td><code>TypeError</code></td><td>the right idea with the wrong type: text plus a number, the wrong number of arguments, doing math with <code>None</code></td></tr>
+  <tr><td><code>KeyError: 'x'</code></td><td>a dict has no such key. Check the spelling and capitals, or use <code>.get()</code></td></tr>
+  <tr><td><code>IndexError: list index out of range</code></td><td>asked for item 5 of a 3-item list (often: the list is empty)</td></tr>
+  <tr><td><code>AttributeError: 'NoneType' object has no attribute …</code></td><td>a variable you expected to hold something is <code>None</code>. Often a function that printed instead of returning.</td></tr>
+  <tr><td><code>AttributeError: 'list' object has no attribute …</code></td><td>that type has no such method: <code>x.len()</code> instead of <code>len(x)</code></td></tr>
+  <tr><td><code>ValueError</code></td><td>the right type with a bad value: <code>int("abc")</code></td></tr>
+  <tr><td><code>SyntaxError</code>, <code>IndentationError</code></td><td>Python couldn't read the code at all: a missing <code>:</code>, bracket or quote, <code>=</code> where you meant <code>==</code>, uneven indents. Look at the line shown <em>and the one above it</em>.</td></tr>
+</table>
+</div>
+
+<div class="box careful">
+  <span class="tag">A SyntaxError means nothing ran</span>
+  <p>Most errors happen partway through: everything before the bad line ran, and you may see some
+  output first. A <code>SyntaxError</code> is different. Python reads the whole file before
+  running any of it, and if it can't make sense of one line, it refuses to start. So no output at
+  all, plus a <code>SyntaxError</code>, means "fix the typing", not "fix the logic". The
+  little <code>^</code> under the line points at where Python got confused, which is often just
+  after the real mistake.</p>
+</div>
+
+<p>Three broken functions to fix. Run each one first and read the error before you change
+anything.</p>
+
+<div class="exercise" data-id="py3-fix-keyerror"></div>
+<div class="exercise" data-id="py3-fix-type"></div>
+<div class="exercise" data-id="py3-fix-syntax"></div>
+
+<div class="box job">
+  <span class="tag">How to debug anything</span>
+  <p>When the traceback doesn't make it obvious: <strong>print what you have</strong>, right
+  before the failing line. <code>print(repr(row), type(row))</code> shows exactly what the value
+  is, including stray spaces (<code>repr</code> puts quotes around text so you can see them).
+  Nine times out of ten the value isn't what you assumed. Then shrink the problem: copy the one
+  failing line into the <code>&gt;&gt;&gt;</code> prompt with a made-up value and poke at it.
+  Cursor and VS Code also have a debugger that pauses on a line so you can inspect everything;
+  it's worth learning once prints stop being enough.</p>
+</div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>def</code> writes the recipe down; a call runs it. Define above, call below.</li>
+  <li>Arguments fill parameters by position, or by name. Defaults make a parameter optional.</li>
+  <li>Functions <code>return</code> their answer. <code>print</code> only shows it, and the caller gets <code>None</code>.</li>
+  <li>A comparison is already <code>True</code> or <code>False</code>: <code>return tag in tags</code>.</li>
+  <li>Guards: handle the awkward case first and return. <code>is None</code> when 0 or empty is a real answer.</li>
+  <li><code>a if condition else b</code> picks between two values.</li>
+  <li>Methods are functions that belong to a type: <code>email.lower()</code>; general jobs are built-ins: <code>len(x)</code>.</li>
+  <li>Tracebacks: last line first, then the line above it. A <code>SyntaxError</code> means nothing ran.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">What's next</span>
+  <p>Lesson 10 points your functions at real files: reading CSVs and JSON, the standard layout of
+  a script, and your first complete script, run from the terminal.</p>
+</div>
+
+</main>
+<script>
+window.COURSE_CHECKS = {
+  "py3-traceback": {
+    kind: "Read the traceback",
+    prompt: "<p>In the traceback above, which line of <code>report.py</code> actually failed? Type the line number.</p>",
+    placeholder: "line number",
+    hints: ["Start from the bottom. The frame just above the error line is where it happened."],
+    solutionText: "14 (in summarize: total += row[\"amount\"])",
+    check: (v) => {
+      const n = v.replace(/[^0-9]/g, "")
+      if (n === "14") return true
+      if (n === "31" || n === "26") return "That line is on the way there, but it isn't where the error happened. Look lower."
+      return "Look at the File line just above KeyError."
+    },
+    success: "Line 14. And the likely cause: the CSV's header says Amount with a capital A. Keys are case-sensitive, so row[\"amount\"] doesn't exist.",
+  },
+}
+</script>
+</body>
+</html>

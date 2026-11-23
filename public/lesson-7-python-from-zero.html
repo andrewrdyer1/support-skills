@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Python From Zero</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="7">
+<main>
+
+<p class="kicker">Lesson 7 · Python basics, part 1 · about 50 minutes</p>
+<h1>Python from zero</h1>
+<p class="lede">Lessons 7 to 10 start from nothing: where Python runs, how to run it, and the
+language one piece at a time, with a small exercise after each piece. By the end of Lesson 10
+you'll have written and run a real script.</p>
+
+<div class="box tip">
+  <span class="tag">How these lessons work</span>
+  <p>Grey <strong>Run</strong> boxes are real Python on your Mac: change anything and run it
+  again. <strong>Exercises</strong> check your code with hidden tests and tell you which case
+  failed. A few steps happen in your own Terminal, because that's where you'll run scripts at
+  work. Your code is saved in this browser as you type.</p>
+  <p>If you use Cursor, turn off its Tab autocomplete while you practice (Cursor Settings →
+  Tab). It will happily write the answer for you, and then you won't have learned it.</p>
+</div>
+
+<h2>1. What Python is for in this job</h2>
+
+<p>Support engineers and CX operations people don't build apps in Python. They write small
+programs, usually 30 to 150 lines, that do a boring job faster and more reliably than a person
+would. They run in a few places:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Where</th><th>What it looks like</th></tr>
+  <tr><td><strong>A script on your laptop</strong></td><td>A <code>.py</code> file you run from the terminal: pull data from an API, clean a CSV, update a batch of tickets. The most common by far.</td></tr>
+  <tr><td><strong>A notebook</strong> (Jupyter, Google Colab, Hex)</td><td>Code in cells with the results shown under each one. Used for one-off digging and charts, especially in CX ops. Lesson 10 has one.</td></tr>
+  <tr><td><strong>A scheduled job</strong> (cron, GitHub Actions)</td><td>The same kind of script, run by a server every hour or every morning: an SLA alert, a nightly report.</td></tr>
+  <tr><td><strong>Inside another tool</strong> (Zapier, Retool, Workato)</td><td>A short snippet that reshapes data between two systems.</td></tr>
+  <tr><td><strong>The product's own code</strong></td><td>Following a stack trace into engineering's code, if the product is written in Python.</td></tr>
+</table>
+</div>
+
+<p>The everyday toolkit is an editor (Cursor or VS Code), the terminal, a <strong>virtual
+environment</strong> with the libraries the script needs, and git to share it. Every one of
+those appears in these lessons.</p>
+
+<h2>2. The terminal, briefly</h2>
+
+<p>The terminal is a window where you type commands instead of clicking. Open the Terminal app,
+or the one built into Cursor (<kbd>Ctrl</kbd> <kbd>`</kbd>, or View → Terminal). You always
+have a <strong>current folder</strong>, and commands act on it.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Type</th><th>It does</th></tr>
+  <tr><td><code>pwd</code></td><td>print the folder you're in ("print working directory")</td></tr>
+  <tr><td><code>ls</code></td><td>list what's in it</td></tr>
+  <tr><td><code>cd workspace</code></td><td>go into a folder; <code>cd ..</code> goes up one; <code>cd ~</code> goes home</td></tr>
+  <tr><td><kbd>Tab</kbd></td><td>finish a file or folder name for you. Use it constantly: it prevents typos.</td></tr>
+  <tr><td><kbd>↑</kbd></td><td>bring back the last command, to run it again or edit it</td></tr>
+  <tr><td><kbd>Ctrl</kbd> <kbd>C</kbd></td><td>stop whatever is running</td></tr>
+  <tr><td><code>clear</code></td><td>clear the screen</td></tr>
+</table>
+</div>
+
+<h2>3. The course's Python</h2>
+
+<p>Type these two lines in the terminal:</p>
+
+<pre>cd ~/Developer/support-skills
+source .venv/bin/activate</pre>
+
+<p>Your prompt now starts with <code>(.venv)</code>. You've switched on a
+<strong>virtual environment</strong>: a private copy of Python inside this project, with its own
+libraries (<code>requests</code>, <code>pytest</code> and a few others). Every Python project at
+work has one, so that one project's libraries can't break another's.</p>
+
+<p>Now check which Python you're running:</p>
+
+<pre>python --version</pre>
+
+<div class="find" data-check="py1-version"></div>
+
+<div class="box careful">
+  <span class="tag">Do this in every new terminal window</span>
+  <p>Activating only lasts for that window. If you ever see <code>command not found:
+  python</code>, or <code>ModuleNotFoundError: No module named 'requests'</code>, you're in a
+  window where the environment isn't on. Run the two lines again. (On a Mac, Python outside an
+  environment is called <code>python3</code>, which is why plain <code>python</code> isn't
+  found.)</p>
+</div>
+
+<h2>4. Two ways to run Python</h2>
+
+<p><strong>The interactive prompt.</strong> Type <code>python</code> and press Enter. The
+prompt changes to <code>&gt;&gt;&gt;</code>, and each line runs as soon as you press Enter.
+Try <code>2 + 3</code>, then <code>"paperkite".upper()</code>. It's for trying one small
+thing. Type <code>exit()</code> to leave.</p>
+
+<p><strong>A file.</strong> Real scripts live in <code>.py</code> files that you run with
+<code>python</code> plus the file's path. The course's files live in <code>workspace/</code>,
+and you always run them from there:</p>
+
+<pre>cd workspace
+python lesson7/first_script.py</pre>
+
+<p>Open <code>workspace/lesson7/first_script.py</code> in your editor and look at how the three
+printed lines come from the code. Then change it to ticket #1151 from Lesson 1: id
+<code>1151</code>, subject <code>Our new bookkeeper never got his invite</code>. Save, press
+<kbd>↑</kbd> in the terminal, and run it again.</p>
+
+<div class="find" data-check="py1-first-script"></div>
+
+<p>That's the whole loop of scripting: edit, save, run, read the output. The Run boxes on this
+page do the same thing for you in one click.</p>
+
+<h2>5. print and comments</h2>
+
+<p><code>print(…)</code> shows something. Separate several things with commas and they're
+printed with spaces between. A <code>#</code> starts a <strong>comment</strong>: Python ignores
+the rest of the line. Comments are for whoever reads the script next, often you in three
+months.</p>
+
+<div class="py"><textarea># This line is a comment. Python skips it.
+print("Paperkite support")
+print("Open tickets:", 71)
+print()  # an empty print makes a blank line
+print("Done")</textarea></div>
+
+<h2>6. Values and their types</h2>
+
+<p>Every value in Python has a <strong>type</strong>, which decides what you can do with it.
+These five cover almost everything in a support script:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Type</th><th>What it is</th><th>Examples</th></tr>
+  <tr><td><code>str</code></td><td>text ("string"), in single or double quotes</td><td><code>"overdue"</code>, <code>'INV-0046'</code></td></tr>
+  <tr><td><code>int</code></td><td>a whole number</td><td><code>71</code>, <code>-3</code>, <code>396800</code></td></tr>
+  <tr><td><code>float</code></td><td>a number with a decimal point</td><td><code>12.5</code>, <code>0.1</code></td></tr>
+  <tr><td><code>bool</code></td><td>yes or no</td><td><code>True</code>, <code>False</code> (capital letters)</td></tr>
+  <tr><td><code>None</code></td><td>"no value": SQL's <code>null</code></td><td><code>None</code></td></tr>
+</table>
+</div>
+
+<p><code>type(…)</code> tells you what something is. When a script misbehaves, checking the type
+is often the fastest way to see why:</p>
+
+<div class="py"><textarea>print(type("71"))
+print(type(71))
+print(type(71.0))
+print(type(True))
+print(type(None))</textarea></div>
+
+<p><code>"71"</code> and <code>71</code> look the same when printed and are completely
+different things. Remember that for section 10.</p>
+
+<h2>7. Variables</h2>
+
+<p>A <strong>variable</strong> is a name for a value. <code>=</code> means "store this value
+under this name" (not "equals": that's <code>==</code>, in Lesson 8). Use it later by
+name:</p>
+
+<div class="py"><textarea>customer = "Harbor & Pine Bakery"
+open_tickets = 2
+open_tickets = open_tickets + 1   # change it: take the old value, add 1, store it again
+
+print(customer, "has", open_tickets, "open tickets")</textarea></div>
+
+<p>Python names are lowercase with underscores between words (<code>open_tickets</code>, not
+<code>openTickets</code>), can't start with a number, and are case-sensitive:
+<code>Customer</code> is a different variable from <code>customer</code>. Pick names that say
+what the value is. <code>amount_cents</code> beats <code>x</code> every time.</p>
+
+<p>The neatest way to put variables into text is an <strong>f-string</strong>: an
+<code>f</code> before the opening quote, and any variable in <code>{curly brackets}</code>:</p>
+
+<div class="py"><textarea>customer = "Harbor & Pine Bakery"
+open_tickets = 2
+print(f"{customer} has {open_tickets} open tickets")</textarea></div>
+
+<div class="exercise" data-id="py1-print"></div>
+
+<h2>8. Numbers</h2>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Means</th><th>Example</th></tr>
+  <tr><td><code>+ - *</code></td><td>add, subtract, multiply</td><td><code>3 * 4</code> is <code>12</code></td></tr>
+  <tr><td><code>/</code></td><td>divide, always giving a float</td><td><code>7 / 2</code> is <code>3.5</code>; <code>8 / 2</code> is <code>4.0</code></td></tr>
+  <tr><td><code>//</code></td><td>divide and drop the remainder</td><td><code>7 // 2</code> is <code>3</code></td></tr>
+  <tr><td><code>%</code></td><td>the remainder</td><td><code>7 % 2</code> is <code>1</code></td></tr>
+  <tr><td><code>**</code></td><td>to the power of</td><td><code>2 ** 10</code> is <code>1024</code></td></tr>
+  <tr><td><code>round(x, 2)</code></td><td>round to 2 decimal places</td><td><code>round(3.14159, 2)</code> is <code>3.14</code></td></tr>
+</table>
+</div>
+
+<p>Notice <code>/</code>. In Lesson 2, Postgres's <code>7 / 2</code> gave <code>3</code>. In
+Python it gives <code>3.5</code>. Same symbol, different rules, which is why you check results
+instead of assuming.</p>
+
+<div class="py"><textarea>amount_cents = 123450
+print(amount_cents / 100)          # 1234.5
+print(f"${amount_cents / 100:,.2f}")  # as money: $1,234.50
+print(0.1 + 0.2)                   # not quite 0.3!</textarea></div>
+
+<p>Two things worth knowing. <code>:,.2f</code> inside the brackets of an f-string means "commas
+between thousands, exactly 2 decimals". And decimals like <code>0.1</code> can't be stored
+exactly, so tiny errors creep in. That's why payment systems, Paperkite included, store money
+as whole <strong>cents</strong>, and only turn it into dollars to show it.</p>
+
+<div class="exercise" data-id="py1-math"></div>
+
+<h2>9. Text</h2>
+
+<p>Strings come with <strong>methods</strong>: built-in actions you call with a dot. They
+return a new string and leave the original alone.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Gives you</th></tr>
+  <tr><td><code>s.strip()</code></td><td>without spaces (and line breaks) at either end</td></tr>
+  <tr><td><code>s.lower()</code>, <code>s.upper()</code>, <code>s.title()</code></td><td>lowercase, UPPERCASE, Title Case</td></tr>
+  <tr><td><code>s.replace("a", "b")</code></td><td>every "a" swapped for "b"</td></tr>
+  <tr><td><code>s.split("@")</code></td><td>a list of the pieces between each <code>@</code></td></tr>
+  <tr><td><code>s.startswith("INV")</code>, <code>s.endswith(".co")</code></td><td><code>True</code> or <code>False</code></td></tr>
+  <tr><td><code>"pine" in s</code></td><td><code>True</code> if that text appears anywhere in <code>s</code> (case matters)</td></tr>
+  <tr><td><code>len(s)</code></td><td>how many characters</td></tr>
+</table>
+</div>
+
+<div class="py"><textarea>raw = "  Priya.Shah@HarborAndPine.com "
+email = raw.strip().lower()     # methods can be chained, left to right
+print(email)
+print(email.split("@"))
+print(email.endswith(".com"), "harbor" in email, len(email))</textarea></div>
+
+<div class="exercise" data-id="py1-strings"></div>
+
+<p>You can also pick characters out by <strong>position</strong>. Positions start at
+<strong>0</strong>, not 1. <code>s[0]</code> is the first character, <code>s[-1]</code> the
+last. A <strong>slice</strong>, <code>s[start:end]</code>, gives the characters from
+<code>start</code> up to <em>but not including</em> <code>end</code>; leave either side out to
+go to the edge.</p>
+
+<div class="py"><textarea>number = "INV-0046"
+print(number[0])      # I
+print(number[-1])     # 6
+print(number[0:3])    # INV  (positions 0, 1, 2)
+print(number[4:])     # 0046 (from position 4 to the end)</textarea></div>
+
+<p>You'll practice slicing at the end of the next section, once you can turn
+<code>"0046"</code> into a number.</p>
+
+<h2>10. Converting between types</h2>
+
+<p>Data that comes from outside your script (a CSV, a form, a command-line argument) arrives as
+text, even when it's a number. Convert it before doing math:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Gives you</th><th>Fails on</th></tr>
+  <tr><td><code>int("42")</code></td><td><code>42</code></td><td><code>int("4.5")</code>, <code>int("abc")</code>: <code>ValueError</code></td></tr>
+  <tr><td><code>float("12.50")</code></td><td><code>12.5</code></td><td><code>float("$12")</code>: <code>ValueError</code></td></tr>
+  <tr><td><code>str(42)</code></td><td><code>"42"</code></td><td>never fails</td></tr>
+</table>
+</div>
+
+<div class="py"><textarea>seats = "3"
+print(seats * 2)         # text times 2: "33"!
+print(int(seats) * 2)    # 6
+print("Seats: " + seats)
+print("Seats: " + 3)     # crashes: can't + text and a number</textarea></div>
+
+<p>Read the error at the bottom: <code>TypeError: can only concatenate str (not "int") to
+str</code>. Errors aren't a sign you've done something wrong; they're Python telling you exactly
+what it couldn't do. The last line is the one to read first. Lesson 9 is about reading the
+rest.</p>
+
+<div class="exercise" data-id="py1-convert"></div>
+
+<h3>Formatting a number as you print it</h3>
+
+<p>Converting a number back to text is where its format can go wrong. <code>int("0046")</code> is
+just <code>46</code>, so the leading zeros are gone, and <code>f"INV-{47}"</code> prints
+<code>INV-47</code>, not <code>INV-0047</code>. To fix that, put a colon after the value inside
+the f-string's curly brackets, followed by a <strong>format code</strong>. The code changes how
+the value looks, not the value itself.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Means</th><th>Prints</th></tr>
+  <tr><td><code>f"{47:04d}"</code></td><td><code>d</code>: a whole number. <code>04</code>: at least 4 wide, padded with zeros</td><td><code>0047</code></td></tr>
+  <tr><td><code>f"{1234.5:,.2f}"</code></td><td><code>f</code>: a decimal. <code>.2</code>: 2 places. <code>,</code>: commas between thousands</td><td><code>1,234.50</code></td></tr>
+  <tr><td><code>f"{0.237:.0%}"</code></td><td>a percentage, no decimals</td><td><code>24%</code></td></tr>
+</table>
+</div>
+
+<p>The colon divides the curly brackets into two parts: on the left is the value, which can be
+any expression (<code>number + 1</code> is fine), and on the right is how to show it. So read
+<code>{number + 1:04d}</code> as "work out <code>number + 1</code>, then show it as 4 digits with
+leading zeros". The <code>1</code> belongs to the math, not to the format.</p>
+
+<div class="py"><textarea>number = 46
+print(f"INV-{number + 1}")       # INV-47: the zeros are gone
+print(f"INV-{number + 1:04d}")   # INV-0047
+print(f"INV-{number + 1:06d}")   # INV-000047: 6 wide instead
+print(f"INV-{1234:04d}")         # INV-1234: already 4 wide, nothing to pad</textarea></div>
+
+<p>Now put slicing, converting and formatting together:</p>
+
+<div class="exercise" data-id="py1-slice"></div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li>Activate the environment in every new terminal: <code>source .venv/bin/activate</code>. Run scripts from <code>workspace/</code> with <code>python path/to/file.py</code>.</li>
+  <li><code>python</code> on its own opens the <code>&gt;&gt;&gt;</code> prompt for trying one thing; <code>exit()</code> leaves.</li>
+  <li>Types: <code>str</code>, <code>int</code>, <code>float</code>, <code>bool</code> (<code>True</code>/<code>False</code>), and <code>None</code>. <code>type(x)</code> tells you which.</li>
+  <li><code>=</code> stores a value under a name. Names are <code>lower_with_underscores</code>.</li>
+  <li>f-strings: <code>f"#{ticket_id}: {subject}"</code>; money as <code>f"${amount:,.2f}"</code>, zero-padded as <code>f"{n:04d}"</code>.</li>
+  <li><code>/</code> always gives a float. Store money in cents.</li>
+  <li>String methods: <code>.strip() .lower() .split() .replace() .endswith()</code>; positions start at 0; slices stop just before the end.</li>
+  <li>Outside data is text: <code>int()</code>, <code>float()</code> and <code>str()</code> convert.</li>
+</ul>
+
+</main>
+<script>
+window.COURSE_CHECKS = {
+  "py1-version": {
+    kind: "In your terminal",
+    prompt: "<p>What did <code>python --version</code> print? Paste the whole line.</p>",
+    placeholder: "Python 3…",
+    hints: ["If you got <code>command not found: python</code>, the environment isn't on: run <code>source .venv/bin/activate</code> from the support-skills folder first."],
+    check: (v) => /^python 3\.\d+(\.\d+)?$/i.test(v.trim()) || (/^python 2/i.test(v) ? "That's Python 2, which is long retired. The course's environment isn't on: activate it and try again." : "Paste the line exactly as printed, like Python 3.14.0."),
+    success: "That's the course's Python, running from its own environment.",
+  },
+  "py1-first-script": {
+    kind: "In your terminal",
+    prompt: "<p>After your change, what is the <strong>second</strong> line your script prints?</p>",
+    placeholder: "Ticket #…",
+    hints: ["Edit the <code>ticket_id</code> and <code>subject</code> lines, save the file, then run <code>python lesson7/first_script.py</code> from the <code>workspace</code> folder.", "If you see <code>can't open file</code>, you're in the wrong folder: <code>pwd</code> should end in <code>support-skills/workspace</code>."],
+    solutionText: "Ticket #1151: Our new bookkeeper never got his invite",
+    check: (v) => {
+      const s = v.trim()
+      if (s === "Ticket #1151: Our new bookkeeper never got his invite") return true
+      if (s.includes("1152")) return "That's still the old ticket. Did you save the file before running it again?"
+      if (s.includes("1151")) return "Close. Check the subject matches exactly, including capitals."
+      return "Paste the second line exactly as the script printed it."
+    },
+    success: "Edit, save, run, read. That's the loop you'll repeat for every script you write.",
+  },
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,143 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Paperkite · Invoices</title>
+<style>
+  /* Paperkite's web app, the screen a customer sees. Lesson 4 inspects it with DevTools. */
+  * { box-sizing: border-box; }
+  body { margin: 0; font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; color: #1c2230; background: #f4f6fb; }
+  .app { display: flex; min-height: 100vh; }
+  .sidebar { width: 210px; flex: none; background: #1c2a4a; color: #c9d3ea; padding: 20px 14px; }
+  .sidebar .logo { color: #fff; font-weight: 700; font-size: 18px; margin: 0 8px 24px; }
+  .sidebar a { display: block; color: inherit; text-decoration: none; padding: 7px 10px; border-radius: 6px; }
+  .sidebar a.active { background: #2c3e66; color: #fff; }
+  .content { flex: 1; padding: 28px 32px; min-width: 0; }
+  .page-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; gap: 12px; flex-wrap: wrap; }
+  .page-header h1 { margin: 0; font-size: 24px; }
+  .account { color: #5d6780; font-size: 14px; }
+  .btn { font: 600 14px inherit; font-family: inherit; padding: 8px 14px; border-radius: 7px; border: 1px solid #c9d0e0; background: #fff; cursor: pointer; }
+  .btn.primary { background: #3557d4; border-color: #3557d4; color: #fff; }
+  .card { background: #fff; border: 1px solid #e1e6f0; border-radius: 10px; overflow: hidden; }
+  .table-scroll { overflow-x: auto; }
+  table { width: 100%; border-collapse: collapse; }
+  th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid #edf0f6; white-space: nowrap; }
+  th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: #6b7590; background: #fafbfd; }
+  td.amount { text-align: right; font-variant-numeric: tabular-nums; }
+
+  /* Status badges. Every status sets its own background; the text is white. */
+  .badge { display: inline-block; padding: 2px 9px; border-radius: 99px; font-size: 12px; font-weight: 700; color: #ffffff; }
+  .badge.paid { background: #1f8a52; }
+  .badge.sent { background: #3557d4; }
+  .badge.draft { background: #8a93a8; }
+  .badge.void { background: #5d6780; }
+  .badge.overdue { background: #c62f24; }
+
+  .toast { position: fixed; bottom: 24px; right: 24px; background: #2a1414; color: #ffd9d6; padding: 12px 16px; border-radius: 8px; font-size: 14px; max-width: 360px; display: none; }
+  .toast.show { display: block; }
+  @media (max-width: 720px) {
+    .sidebar { display: none; }
+    .content { padding: 18px 16px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <nav class="sidebar">
+    <div class="logo">Paperkite</div>
+    <a href="#">Dashboard</a>
+    <a href="#" class="active">Invoices</a>
+    <a href="#">Clients</a>
+    <a href="#">Settings</a>
+  </nav>
+
+  <main class="content">
+    <div class="page-header">
+      <div>
+        <h1>Invoices</h1>
+        <div class="account">Harbor &amp; Pine Bakery · Pro plan</div>
+      </div>
+      <div>
+        <button class="btn" id="export">Export CSV</button>
+        <button class="btn primary">New invoice</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr><th>Number</th><th>Client</th><th>Status</th><th>Issued</th><th>Due</th><th class="amount">Amount</th></tr>
+          </thead>
+          <tbody id="rows"><tr><td colspan="6">Loading…</td></tr></tbody>
+        </table>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="alert"></div>
+
+<script>
+  // A real web app would use your login session. This practice page calls your
+  // local Paperkite API with one of Harbor & Pine's API keys instead.
+  const API_KEY = "pk_test_harbor_reporting_7d2f"
+  const auth = { Authorization: "Bearer " + API_KEY }
+
+  const STATUS_CLASS = {
+    paid: "paid",
+    sent: "sent",
+    draft: "draft",
+    void: "void",
+    overdue: "overdeu",
+  }
+
+  function money(cents, currency) {
+    return new Intl.NumberFormat("en-US", { style: "currency", currency }).format(cents / 100)
+  }
+
+  async function loadInvoices() {
+    const res = await fetch("/api/v1/invoices?limit=20", { headers: auth })
+    const { data } = await res.json()
+    document.getElementById("rows").innerHTML = data
+      .map(
+        (inv) => `<tr>
+          <td>${inv.number}</td>
+          <td>${inv.client_name}</td>
+          <td><span class="badge ${STATUS_CLASS[inv.status]}">${inv.status}</span></td>
+          <td>${inv.issued_at}</td>
+          <td>${inv.due_at}</td>
+          <td class="amount">${money(inv.amount_cents, inv.currency)}</td>
+        </tr>`,
+      )
+      .join("")
+  }
+
+  async function exportCsv() {
+    const res = await fetch("/api/v1/invoices/export", { headers: auth })
+    if (!res.ok) {
+      const body = await res.json()
+      console.error("Export failed", res.status, body.error)
+      showToast("Something went wrong. Please try again later.")
+      return
+    }
+    const blob = await res.blob()
+    const link = document.createElement("a")
+    link.href = URL.createObjectURL(blob)
+    link.download = "invoices.csv"
+    link.click()
+  }
+
+  function showToast(message) {
+    const toast = document.getElementById("toast")
+    toast.textContent = message
+    toast.classList.add("show")
+    setTimeout(() => toast.classList.remove("show"), 5000)
+  }
+
+  document.getElementById("export").addEventListener("click", exportCsv)
+  loadInvoices()
+</script>
+</body>
+</html>

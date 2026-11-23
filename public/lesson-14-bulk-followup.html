@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Safe Bulk Update</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="14">
+<main>
+
+<p class="kicker">Lesson 14 · script case · about 75 minutes</p>
+<h1>Script: a safe bulk update</h1>
+<p class="lede">Reports only read. This script <em>changes</em> things: it replies to customers,
+tags tickets and changes their status, in bulk. That's the kind of script CX operations teams
+write most, and the kind that does the most damage when it's wrong. So it's built to be safe
+first.</p>
+
+<div class="box ticket">
+  <span class="tag">Slack · #support-leads</span>
+  <p>Engineering confirmed the export bug from Lesson 6 and the fix is coming. Can you send every
+  customer with an open export ticket a proper update with the workaround, tag the tickets so we
+  can find them when the fix ships, and move them to pending? There are a few now, and there'll
+  be more by tomorrow, so a script would be great.</p>
+</div>
+
+<h2>1. The help desk API</h2>
+
+<p>Paperkite's support team works tickets through its own help desk, and like Zendesk or
+Intercom, it has an API. Its token is <code>hd_test_support_team</code>, and these editors have
+it in the <code>HELPDESK_TOKEN</code> environment variable.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Request</th><th>Does</th></tr>
+  <tr><td><code>GET /api/v1/helpdesk/tickets?q=export&amp;status=open,pending</code></td><td>Tickets whose subject contains <code>q</code> (any case), with those statuses. Paged: <code>limit</code>, <code>page</code>, <code>has_more</code>.</td></tr>
+  <tr><td><code>GET /api/v1/helpdesk/tickets/1152</code></td><td>One ticket, with its comments</td></tr>
+  <tr><td><code>POST /api/v1/helpdesk/tickets/1152/comments</code></td><td>Add a reply. Body: <code>{"body": "…", "public": true}</code>. <code>public: false</code> is an internal note.</td></tr>
+  <tr><td><code>PATCH /api/v1/helpdesk/tickets/1152</code></td><td>Change it. Body: any of <code>{"status": "pending", "add_tags": ["x"], "remove_tags": ["y"]}</code></td></tr>
+</table>
+</div>
+
+<p>Changes are kept in memory by the course server, so restarting it, or the Reset button at
+the end of this lesson, puts every ticket back.</p>
+
+<div class="py" data-title="Look before you change anything"><textarea>
+import os
+import requests
+
+API = os.environ["PAPERKITE_API"]
+HEADERS = {"Authorization": f"Bearer {os.environ['HELPDESK_TOKEN']}"}
+
+for q in ["export", "download"]:
+    r = requests.get(f"{API}/api/v1/helpdesk/tickets", headers=HEADERS,
+                     params={"q": q, "status": "open,pending"})
+    for t in r.json()["data"]:
+        print(q, "->", t["id"], t["status"], t["tags"], "|", t["account_name"], "|", t["subject"])
+</textarea></div>
+
+<p>Three tickets, matching the ones you found with SQL in Lesson 6. Two searches are needed,
+because the third customer said "download", not "export".</p>
+
+<h2>2. Five rules for scripts that change data</h2>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Rule</th><th>Why</th><th>How this script does it</th></tr>
+  <tr><td><strong>Dry run first</strong></td><td>You see exactly which records it will touch before it touches any.</td><td><code>--dry-run</code> prints "would reply…" for each ticket and changes nothing.</td></tr>
+  <tr><td><strong>Ask before acting</strong></td><td>A typo in a search term shouldn't email 400 customers.</td><td>It says how many tickets it will change and waits for you to type <code>yes</code>. <code>--yes</code> skips the question when you're sure, such as in a scheduled job.</td></tr>
+  <tr><td><strong>Safe to run twice</strong> (idempotent)</td><td>Scripts get re-run after a crash, or by a colleague who didn't know you'd run it. Customers must not get the same reply twice.</td><td>The tag marks a ticket as done. Tagged tickets are skipped.</td></tr>
+  <tr><td><strong>Keep going on failure</strong></td><td>One bad record shouldn't leave the rest half-done with no record of which.</td><td>Each ticket is in its own <code>try</code>. Failures are collected and listed at the end, and the exit code is 1.</td></tr>
+  <tr><td><strong>Say what happened</strong></td><td>You'll be asked "did it go out to Wren Consulting?"</td><td>One log line per ticket, then a summary: updated, skipped, failed.</td></tr>
+</table>
+</div>
+
+<details class="quiz">
+  <summary>Why reply <em>before</em> tagging, and not the other way round?</summary>
+  <div class="answer">
+    <p>Think about each step failing halfway. If the script tags first and then the reply
+    fails, the ticket looks done: every future run skips it, and that customer never hears
+    from you. If it replies first and the tag fails, a re-run might reply again. That's
+    annoying, but you'd see it, and the customer still got the update.</p>
+    <p>Replying first fails more visibly and more safely, and the failure list tells you exactly
+    which ticket to check by hand. There's rarely a perfect order. The skill is thinking through
+    what each failure leaves behind and picking the one you can live with.</p>
+  </div>
+</details>
+
+<h2>3. Warm up: command-line options and de-duplicating</h2>
+
+<p><code>argparse</code> turns <code>python script.py --dry-run --tag x</code> into an object
+with <code>args.dry_run</code> and <code>args.tag</code>, and writes a <code>--help</code>
+page for you.</p>
+
+<div class="exercise" data-id="p9-argparse"></div>
+<div class="exercise" data-id="p9-dedupe"></div>
+
+<h2>4. Testing a script that changes data</h2>
+
+<p>You can't test this script by running it for real over and over: every run would post more
+replies. So the test file has <code>FakeHelpdesk</code>, an in-memory help desk with the same
+three methods as the real client (<code>search</code>, <code>add_comment</code>,
+<code>update</code>). Every function in the script takes the client as a parameter, so tests
+pass the fake in and then inspect it: which tickets got a comment, which got the tag.</p>
+
+<pre>def test_running_twice_does_not_reply_twice():
+    desk = sample()
+    follow_up(desk, find_tickets(desk, ["export", "download"], "open,pending"), TAG, log=quiet)
+    second = follow_up(desk, find_tickets(desk, ["export", "download"], "open,pending"), TAG, log=quiet)
+    assert second["done"] == []
+    assert second["skipped"] == [1, 2, 3, 4]
+    assert all(len(desk.comments[tid]) == 1 for tid in [1, 2, 3, 4])</pre>
+
+<p>Every safety rule above has a test like this: dry run changes nothing, canceling changes
+nothing, running twice replies once, one failure doesn't stop the rest. When they pass, you can
+run the real thing with confidence. That's the point of tests: confidence before you do
+something you can't undo.</p>
+
+<h2>5. Build it</h2>
+
+<pre>cd ~/Developer/support-skills/workspace
+source ../.venv/bin/activate
+python -m pytest lesson14</pre>
+
+<p>11 failing. The help desk client is written for you (it's Lesson 13's pattern). In
+<code>lesson14/export_followup.py</code>, fill in, in order:</p>
+
+<ol>
+  <li><code>find_tickets</code>: <code>-k find_tickets</code></li>
+  <li><code>reply_for</code>: <code>-k reply</code></li>
+  <li><code>follow_up</code>: the heart of it. <code>-k "dry_run or replies or twice or failure"</code></li>
+  <li>The three missing options in <code>parse_args</code></li>
+  <li>The confirmation step in <code>main</code></li>
+</ol>
+
+<details class="quiz">
+  <summary>Help with <code>follow_up</code></summary>
+  <div class="answer">
+    <pre>for ticket in tickets:
+    tid = ticket["id"]
+    if tag in ticket["tags"]:
+        log(f"#{tid}: already tagged {tag}, skipping")
+        result["skipped"].append(tid)
+        continue
+    if dry_run:
+        log(f"#{tid}: would reply, tag {tag}, set {new_status}")
+        result["done"].append(tid)
+        continue
+    try:
+        client.add_comment(tid, reply_for(ticket))
+        client.update(tid, status=new_status, add_tags=[tag])
+        log(f"#{tid}: replied, tagged {tag}, set {new_status}")
+        result["done"].append(tid)
+    except HelpdeskError as e:
+        log(f"#{tid}: FAILED: {e}")
+        result["failed"].append((tid, str(e)))</pre>
+    <p><code>log</code> is a parameter that defaults to <code>print</code>. Tests pass a
+    function that collects lines instead, so they can check what was logged.</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>Help with the confirmation step</summary>
+  <div class="answer">
+    <pre>if todo and not args.dry_run and not args.yes:
+    answer = confirm(f"Reply to, tag and update {len(todo)} tickets? Type yes to continue: ")
+    if answer.strip().lower() != "yes":
+        print("Canceled. Nothing was changed.")
+        return 1</pre>
+    <p><code>confirm</code> defaults to Python's <code>input</code>, which waits for you to
+    type. Tests pass <code>lambda prompt: "no"</code> instead. Same trick as the fake sleep in
+    Lesson 13.</p>
+  </div>
+</details>
+
+<h2>6. Run it for real</h2>
+
+<p>When all 13 tests pass:</p>
+
+<pre>export HELPDESK_TOKEN=hd_test_support_team
+python lesson14/export_followup.py --help
+python lesson14/export_followup.py --dry-run</pre>
+
+<p>Read the dry run line by line. Three tickets, the right customers, nothing else? Then:</p>
+
+<pre>python lesson14/export_followup.py</pre>
+
+<p>Type <code>yes</code>. Then run it once more and confirm it skips all three. Finally, check
+your work:</p>
+
+<div class="find" data-check="p9-real-run"></div>
+
+<p><button id="reset-helpdesk">Reset the help desk</button> <span id="reset-note"
+style="color:var(--muted);font-size:14px"></span><br><span style="color:var(--muted);font-size:14px">Puts every
+ticket back as it was, if you want to run it again from scratch.</span></p>
+
+<div class="box tip">
+  <span class="tag">Stuck?</span>
+  <p>The finished version is in <code>course/solutions/lesson14/export_followup.py</code>.</p>
+</div>
+
+<h2>7. Your turn</h2>
+
+<ol>
+  <li>Write <code>test_status_option_sets_solved</code>: run <code>main(["--yes", "--status",
+    "solved"], client=desk)</code> and check the tickets ended up <code>solved</code>.</li>
+  <li>Add a <code>--limit N</code> option that only processes the first N tickets that need it.
+    This is the classic way to try a risky change on a few records before all of them. Write
+    the test first, watch it fail, then make it pass.</li>
+</ol>
+
+<details class="quiz">
+  <summary>A test for <code>--limit</code></summary>
+  <div class="answer">
+    <pre>def test_limit_only_touches_the_first_n():
+    desk = sample()
+    assert main(["--yes", "--limit", "2"], client=desk) == 0
+    touched = [tid for tid, c in desk.comments.items() if c]
+    assert touched == [1, 2]</pre>
+    <p>Then add the option to <code>parse_args</code> (<code>type=int</code>, default
+    <code>None</code>) and slice the to-do list in <code>main</code> when it's set.</p>
+  </div>
+</details>
+
+<h2>Recap</h2>
+
+<ul>
+  <li>Scripts that change data: dry run, confirm, idempotent, keep going on failure, report everything.</li>
+  <li>Think through what each step failing halfway leaves behind, and order the steps for the failure you can live with.</li>
+  <li><code>argparse</code> for options (<code>action="store_true"</code> for flags, <code>type=int</code> for numbers, <code>choices=[…]</code> to limit values).</li>
+  <li>Wrap the API in a small client class. Pass the client in, so tests can use a fake.</li>
+  <li>Exit codes: 0 for success, non-zero when something failed, so other tools (and schedulers) can tell.</li>
+</ul>
+
+</main>
+
+<script>
+window.COURSE_CHECKS = {
+  "p9-real-run": {
+    kind: "Check your run",
+    noInput: true,
+    button: "Check the help desk",
+    prompt: "<p>After your real run, each of the three export tickets (#1152, #1154, #1155) should have exactly one public reply mentioning the export, the tag <code>export-bug-oct28</code>, and status <code>pending</code>. No other ticket should be touched.</p>",
+    check: async () => {
+      const state = await (await fetch("/course/helpdesk/state")).json()
+      const ids = [1152, 1154, 1155]
+      const byId = Object.fromEntries(state.map((s) => [s.id, s]))
+      const others = state.filter((s) => !ids.includes(s.id))
+      if (others.length) return `Ticket${others.length > 1 ? "s" : ""} ${others.map((o) => "#" + o.id).join(", ")} changed too. Only the export tickets should be touched. Reset the help desk and try again.`
+      for (const id of ids) {
+        const s = byId[id]
+        if (!s) return `#${id} hasn't been changed. Did the real run (without --dry-run) finish?`
+        const publicReplies = s.comments.filter((c) => c.public)
+        if (publicReplies.length === 0) return `#${id} has no public reply.`
+        if (publicReplies.length > 1) return `#${id} got ${publicReplies.length} replies. Running twice should skip tagged tickets.`
+        if (!/export/i.test(publicReplies[0].body)) return `#${id}'s reply doesn't mention the export.`
+        if (!s.tags.includes("export-bug-oct28")) return `#${id} is missing the export-bug-oct28 tag.`
+        if (s.status !== "pending") return `#${id} is ${s.status}, not pending.`
+      }
+      return true
+    },
+    success: "All three customers have one update each, tagged and pending, and nothing else was touched. That's a clean bulk operation.",
+  },
+}
+document.addEventListener("DOMContentLoaded", () => {
+  document.getElementById("reset-helpdesk").onclick = async () => {
+    await fetch("/course/helpdesk/reset", { method: "POST", headers: { "X-Course": "1" } })
+    document.getElementById("reset-note").textContent = "Done. Every ticket is back as it was."
+  }
+})
+</script>
+</body>
+</html>

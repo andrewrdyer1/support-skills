@@ -1,0 +1,462 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>What a Page Is Made Of</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="4">
+<main>
+
+<p class="kicker">Lesson 4 · HTML, CSS and DevTools · about 45 minutes</p>
+<h1>What a web page is made of</h1>
+<p class="lede">Customers describe problems by what they see on screen. To get from "the
+button's gone" to "this element has <code>display: none</code>," you need to know what a page
+is built from and how to look inside one.</p>
+
+<div class="box ticket">
+  <span class="tag">New ticket · bug · normal</span>
+  <p class="meta">From maya@harborandpine.com</p>
+  <p>Small thing, but our overdue invoices don't show the red "overdue" label anymore. The
+  paid ones still say paid. Makes it hard to see who to chase.</p>
+</div>
+
+<p>You'll fix nothing in this lesson. You'll learn enough HTML and CSS to read a page, then
+open the real Paperkite page in your browser's developer tools and find exactly why that
+label disappeared, so the engineer who fixes it doesn't have to.</p>
+
+<h2>1. Three languages, three jobs</h2>
+
+<p>Every web page is built from three languages working together:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Language</th><th>Its job</th><th>Analogy</th></tr>
+  <tr><td><strong>HTML</strong></td><td>What's on the page: headings, text, links, tables, buttons</td><td>The walls and rooms of a house</td></tr>
+  <tr><td><strong>CSS</strong></td><td>How it looks: colors, sizes, spacing, layout</td><td>Paint and furniture</td></tr>
+  <tr><td><strong>JavaScript</strong></td><td>What it does: load data, react to clicks, show errors</td><td>The wiring and plumbing</td></tr>
+</table>
+</div>
+
+<p>When a page loads, the browser reads the HTML and builds a tree of elements in memory
+called the <strong>DOM</strong> (Document Object Model). CSS decides how each element in the
+tree looks. JavaScript can add, change or remove elements in the tree at any time. That's how
+Paperkite's invoice table fills itself in after the page loads.</p>
+
+<h2>2. HTML: elements, tags and attributes</h2>
+
+<p>HTML is made of <strong>elements</strong>. Most elements have an opening tag, some
+content, and a closing tag with a slash:</p>
+
+<pre>&lt;p class="note"&gt;Payment is due in 30 days.&lt;/p&gt;
+ ↑    ↑                                  ↑
+ tag  attribute                          closing tag</pre>
+
+<p><strong>Attributes</strong> go inside the opening tag and add information:
+<code>class</code> labels an element for styling, <code>href</code> is where a link goes,
+<code>src</code> is an image's file. Elements nest inside each other, which is what makes
+the tree.</p>
+
+<p>Edit the HTML on the left. The preview updates as you type:</p>
+
+<div class="play" data-title="Playground: an invoice card">
+<textarea class="html"><div class="card">
+  <h2>Invoice INV-0042</h2>
+  <p>Billed to <strong>Stonebridge Gym</strong>.</p>
+  <p>Due <em>November 4, 2026</em>.</p>
+  <ul>
+    <li>Sourdough loaves × 40</li>
+    <li>Croissants × 120</li>
+  </ul>
+  <a href="https://example.com">View invoice</a>
+</div></textarea>
+<textarea class="css"></textarea>
+</div>
+
+<p>The elements you'll meet most:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Element</th><th>What it is</th></tr>
+  <tr><td><code>&lt;h1&gt;</code> to <code>&lt;h6&gt;</code></td><td>Headings, from most to least important</td></tr>
+  <tr><td><code>&lt;p&gt;</code></td><td>A paragraph</td></tr>
+  <tr><td><code>&lt;a href="…"&gt;</code></td><td>A link</td></tr>
+  <tr><td><code>&lt;img src="…" alt="…"&gt;</code></td><td>An image. No closing tag. <code>alt</code> describes it for screen readers and when it fails to load.</td></tr>
+  <tr><td><code>&lt;ul&gt;</code>, <code>&lt;ol&gt;</code>, <code>&lt;li&gt;</code></td><td>Bulleted list, numbered list, list item</td></tr>
+  <tr><td><code>&lt;table&gt;</code>, <code>&lt;tr&gt;</code>, <code>&lt;th&gt;</code>, <code>&lt;td&gt;</code></td><td>Table, row, header cell, data cell</td></tr>
+  <tr><td><code>&lt;button&gt;</code>, <code>&lt;input&gt;</code>, <code>&lt;label&gt;</code>, <code>&lt;form&gt;</code></td><td>Interactive controls and the form that groups them</td></tr>
+  <tr><td><code>&lt;div&gt;</code>, <code>&lt;span&gt;</code></td><td>Generic boxes with no meaning of their own, used for layout and styling. <code>div</code> is a block on its own line; <code>span</code> sits inside a line of text.</td></tr>
+</table>
+</div>
+
+<div class="play" data-check="l3-heading">
+<textarea class="html"><div class="card">
+  <p>Billed to Westfield Realty.</p>
+</div></textarea>
+<textarea class="css"></textarea>
+</div>
+
+<div class="play" data-check="l3-table">
+<textarea class="html"><table>
+  <tr>
+    <th>Number</th>
+  </tr>
+</table></textarea>
+<textarea class="css">table { border-collapse: collapse; }
+th, td { border: 1px solid #ccc; padding: 6px 10px; text-align: left; }</textarea>
+</div>
+
+<h2>3. class and id: names for elements</h2>
+
+<p>Two attributes matter more than the rest, because CSS and JavaScript use them to find
+elements:</p>
+
+<ul>
+  <li><code>class="badge paid"</code> gives an element one or more labels, separated by
+    spaces. Many elements can share a class. This element has two classes:
+    <code>badge</code> and <code>paid</code>.</li>
+  <li><code>id="export"</code> gives one element a unique name. Only one element on a page
+    should have a given id.</li>
+</ul>
+
+<p>Hold onto "separated by spaces." It's at the center of this lesson's ticket.</p>
+
+<h2>4. CSS: rules, selectors and properties</h2>
+
+<p>CSS is a list of <strong>rules</strong>. Each rule says <em>which elements</em> (the
+<strong>selector</strong>) and <em>how they should look</em> (a list of
+<strong>property: value;</strong> pairs):</p>
+
+<pre>.badge.paid {             ← selector: elements with class badge AND class paid
+  background: #1f8a52;    ← property: value;
+  color: white;
+}</pre>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Selector</th><th>Matches</th></tr>
+  <tr><td><code>p</code></td><td>every <code>&lt;p&gt;</code> element</td></tr>
+  <tr><td><code>.badge</code></td><td>every element with class <code>badge</code></td></tr>
+  <tr><td><code>.badge.paid</code></td><td>elements with <em>both</em> classes (no space between them)</td></tr>
+  <tr><td><code>#export</code></td><td>the element with id <code>export</code></td></tr>
+  <tr><td><code>.card p</code></td><td>any <code>&lt;p&gt;</code> anywhere inside a <code>.card</code> (a space means "inside")</td></tr>
+  <tr><td><code>a:hover</code></td><td>a link while the mouse is over it</td></tr>
+</table>
+</div>
+
+<p>Properties you'll see constantly: <code>color</code> (text color),
+<code>background</code>, <code>font-size</code>, <code>font-weight</code>,
+<code>margin</code>, <code>padding</code>, <code>border</code>, <code>display</code>,
+<code>width</code>. Colors are written as names (<code>red</code>), hex codes
+(<code>#c62f24</code>), or <code>rgb(198, 47, 36)</code>. DevTools usually shows them as
+rgb.</p>
+
+<div class="play" data-check="l3-badges">
+<textarea class="html"><p>
+  <span class="badge paid">paid</span>
+  <span class="badge overdue">overdue</span>
+</p></textarea>
+<textarea class="css">.badge {
+  display: inline-block;
+  padding: 2px 9px;
+  border-radius: 99px;
+  font-size: 12px;
+  font-weight: 700;
+  color: white;
+}
+.badge.paid {
+  background: #1f8a52;
+}
+</textarea>
+</div>
+
+<h3>The box model</h3>
+
+<p>Every element is a rectangle made of four layers, from the inside out:</p>
+
+<pre>┌──────────── margin ────────────┐   space outside the border, pushing neighbors away
+│ ┌────────── border ──────────┐ │   the visible edge
+│ │ ┌──────── padding ───────┐ │ │   space inside the border, around the content
+│ │ │        content         │ │ │   the text or image itself
+│ │ └────────────────────────┘ │ │
+│ └────────────────────────────┘ │
+└────────────────────────────────┘</pre>
+
+<p>When something on a page is "too cramped" or "has a weird gap," it's almost always
+padding or margin. DevTools draws this exact diagram for any element you select.</p>
+
+<div class="play" data-check="l3-box">
+<textarea class="html"><div class="card">
+  <strong>INV-0045</strong> · Westfield Realty · $1,521.99
+</div></textarea>
+<textarea class="css">.card {
+  background: #f7f8fb;
+}</textarea>
+</div>
+
+<h3>display and layout</h3>
+
+<p><code>display</code> decides how an element takes up space. The values worth knowing:</p>
+
+<ul>
+  <li><code>block</code>: starts on a new line and stretches the full width (<code>div</code>, <code>p</code>, <code>h1</code>).</li>
+  <li><code>inline</code>: flows inside a line of text (<code>span</code>, <code>a</code>, <code>strong</code>).</li>
+  <li><code>none</code>: <strong>not shown at all</strong>, and takes up no space. The number one
+    answer to "where did the button go?"</li>
+  <li><code>flex</code>: lays out its children in a row (or column) with control over spacing
+    and alignment. Most modern layouts are built with it.</li>
+</ul>
+
+<p>Paperkite's page header uses flex to put the title on the left and the buttons on the
+right. Recreate it:</p>
+
+<div class="play" data-check="l3-flex">
+<textarea class="html"><div class="page-header">
+  <h1>Invoices</h1>
+  <button>Export CSV</button>
+</div></textarea>
+<textarea class="css">.page-header {
+
+}
+.page-header h1 { margin: 0; font-size: 22px; }</textarea>
+</div>
+
+<h3>The cascade: why a style "doesn't apply"</h3>
+
+<p>When two rules set the same property on the same element, CSS has to pick one. The rule
+with the more <strong>specific</strong> selector wins: an id beats a class, and a class beats
+a plain element name. Only when they tie does the rule written later win.</p>
+
+<p>This is behind a lot of "I changed the color and nothing happened." In DevTools, the losing
+rule shows up with a line through it.</p>
+
+<div class="play" data-check="l3-specificity">
+<textarea class="html"><div id="notice">
+  <p class="warning">Your card expires this month.</p>
+</div></textarea>
+<textarea class="css">#notice p {
+  color: navy;
+}
+
+.warning {
+  color: #c62f24;
+}</textarea>
+</div>
+
+<div class="box tip">
+  <span class="tag">CX operations note</span>
+  <p>Help center articles, saved replies (macros) and email templates are usually HTML with a
+  little CSS. Email is a special case: many email apps strip out <code>&lt;style&gt;</code>
+  blocks, so email HTML puts its styles directly on each element
+  (<code>&lt;p style="color: #555"&gt;</code>) and often uses tables for layout. If a template
+  looks fine in the editor and broken in Outlook, that's usually why.</p>
+</div>
+
+<h2>5. DevTools: looking inside any page</h2>
+
+<p>Every desktop browser ships with developer tools that show the live HTML, CSS, JavaScript
+errors and network traffic behind the page you're looking at. For a support engineer, this
+is the single most useful tool there is.</p>
+
+<p><strong>Open the Paperkite app in a new tab:</strong>
+<a href="portal.html" target="_blank">localhost:4747/portal.html</a>. It's Harbor &amp; Pine's
+invoice page. Then open DevTools:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Browser</th><th>Shortcut</th></tr>
+  <tr><td>Chrome, Edge, Arc, Brave</td><td><kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>I</kbd> (Mac) or <kbd>F12</kbd> (Windows)</td></tr>
+  <tr><td>Safari</td><td>First turn on Settings → Advanced → "Show features for web developers", then <kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>I</kbd></td></tr>
+  <tr><td>Firefox</td><td><kbd>⌘</kbd> <kbd>⌥</kbd> <kbd>I</kbd></td></tr>
+</table>
+</div>
+
+<p>Or right-click anything on the page and choose <strong>Inspect</strong>, which opens
+DevTools with that element already selected. The three tabs that matter:</p>
+
+<ul>
+  <li><strong>Elements</strong> (Safari: Elements; Firefox: Inspector): the live DOM. Click
+    an element to see every CSS rule that applies to it, which ones lost (crossed out), and the
+    final <strong>Computed</strong> values. You can edit HTML and CSS right there to test a
+    fix. Changes vanish when you reload; nothing is saved.</li>
+  <li><strong>Console</strong>: JavaScript errors and messages. A red line here is often the
+    whole story behind "the page doesn't work."</li>
+  <li><strong>Network</strong>: every request the page makes to a server, with its status
+    code and response. Lesson 5 is about what those requests are.</li>
+</ul>
+
+<h3>Find the missing label</h3>
+
+<p>In the Paperkite tab, find a row whose status cell looks empty. That's an overdue invoice.
+Right-click the empty-looking spot in the Status column and choose <strong>Inspect</strong>.
+Look at the selected <code>&lt;span&gt;</code>: its text is there, so the HTML isn't missing
+anything. Now look at its classes, and compare them with the CSS rules in the Styles panel.</p>
+
+<div class="find" data-check="l3-badge-bug"></div>
+
+<details class="quiz">
+  <summary>Why is the text there but invisible?</summary>
+  <div class="answer">
+    <p>The base <code>.badge</code> rule sets <code>color: #ffffff</code> (white text) and
+    expects each status rule to supply a colored background. The overdue badge has the classes
+    <code>badge</code> and <code>overdeu</code>. There's no <code>.badge.overdeu</code> rule,
+    so it gets white text on no background: white on a white table. In the Computed panel,
+    <code>color</code> is <code>rgb(255, 255, 255)</code> and <code>background-color</code> is
+    transparent.</p>
+    <p>Try the fix live: in the Elements panel, double-click <code>overdeu</code> in the class
+    attribute, change it to <code>overdue</code>, and press Enter. The red label appears. That's
+    the proof you'd put in a bug ticket.</p>
+  </div>
+</details>
+
+<div class="box job">
+  <span class="tag">What you'd send engineering</span>
+  <p><em>Overdue badges render blank on the Invoices page. The span gets class
+  <code>overdeu</code> (typo) instead of <code>overdue</code>, so the <code>.badge.overdue</code>
+  rule never matches and the text is white on white. Changing the class to
+  <code>overdue</code> in DevTools fixes it. Likely the status-to-class map in the invoices
+  page script. Affects every account; cosmetic, but customers use it to find who to chase.</em></p>
+  <p>Compare that with "customer says the overdue label is missing." The engineer can fix
+  the first one in five minutes.</p>
+</div>
+
+<h3>The Console and the Network tab</h3>
+
+<p>Now click <strong>Export CSV</strong> on the Paperkite page. You'll get the same
+"Something went wrong" message Maya saw.</p>
+
+<p>Switch to the <strong>Console</strong> tab: there's a red <code>Export failed 500</code>
+line the page wrote when the request failed. Then switch to <strong>Network</strong> and
+click Export again. (Network only records while it's open.) A new row appears for
+<code>export</code> with status <strong>500</strong>. Click it and look at the
+<strong>Headers</strong> section, under Response Headers.</p>
+
+<div class="find" data-check="l3-request-id"></div>
+
+<div class="box tip">
+  <span class="tag">Copy as cURL</span>
+  <p>Right-click any request in the Network tab and choose <strong>Copy → Copy as
+  cURL</strong>. You get a terminal command that makes exactly the same request again,
+  headers and all. Support engineers use this constantly to reproduce a customer's problem
+  outside the browser. It's where Lesson 5 picks up.</p>
+</div>
+
+<div class="box careful">
+  <span class="tag">When you ask a customer for this</span>
+  <p>A HAR file (Network → right-click → "Save all as HAR") or a copied cURL can contain the
+  customer's login cookies or API keys. Treat them like passwords: ask for them through your
+  ticketing system, never a public channel, and never paste them into a shared doc.</p>
+</div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li>HTML is the content and structure, CSS is the look, JavaScript is the behavior. The browser turns HTML into the DOM tree.</li>
+  <li>Elements have tags and attributes. <code>class</code> (many, space-separated) and <code>id</code> (one) are how CSS and JavaScript find them.</li>
+  <li>A CSS rule is a selector plus <code>property: value;</code> pairs. More specific selectors win; crossed-out rules in DevTools lost.</li>
+  <li>Margin, border, padding, content: the box model. <code>display: none</code> hides an element completely.</li>
+  <li>DevTools: <strong>Elements</strong> for what's on the page and why it looks that way, <strong>Console</strong> for errors, <strong>Network</strong> for what the page asked the server and what came back.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">Interview prep</span>
+  <p>"A customer says a button is missing. How do you investigate?" A strong answer: reproduce
+  it if I can; inspect the element to see if it's in the DOM at all, and if it is, check
+  computed styles for <code>display: none</code> or zero size; check the Console for errors that
+  stopped the page from rendering it; check Network for a failed request that the button
+  depends on. Then compare with an account where it works.</p>
+</div>
+
+</main>
+
+<script>
+window.COURSE_CHECKS = {
+  "l3-heading": {
+    prompt: "<p>Add a level-2 heading that says <strong>Invoice INV-0045</strong> above the paragraph, and below the paragraph a link with the text <strong>View invoice</strong> that goes to <code>/invoices/45</code>.</p>",
+    hints: ["A heading: <code>&lt;h2&gt;Invoice INV-0045&lt;/h2&gt;</code>", "A link: <code>&lt;a href=\"/invoices/45\"&gt;View invoice&lt;/a&gt;</code>"],
+    solutionText: '<div class="card">\n  <h2>Invoice INV-0045</h2>\n  <p>Billed to Westfield Realty.</p>\n  <a href="/invoices/45">View invoice</a>\n</div>',
+    check: (doc) => {
+      const h = doc.querySelector("h2")
+      const a = doc.querySelector('a[href="/invoices/45"]')
+      return !!h && h.textContent.includes("INV-0045") && !!a && a.textContent.trim() === "View invoice"
+    },
+    success: "That's it. Heading, paragraph, link: most of the web is made of these.",
+  },
+  "l3-table": {
+    prompt: "<p>Finish the table: header cells for <strong>Number</strong>, <strong>Status</strong> and <strong>Amount</strong>, then two data rows underneath with any values you like.</p>",
+    hints: ["Each row is a <code>&lt;tr&gt;</code>. Header cells are <code>&lt;th&gt;</code>; data cells are <code>&lt;td&gt;</code>.", "A data row: <code>&lt;tr&gt;&lt;td&gt;INV-0044&lt;/td&gt;&lt;td&gt;sent&lt;/td&gt;&lt;td&gt;$4,171.00&lt;/td&gt;&lt;/tr&gt;</code>"],
+    solutionText: "<table>\n  <tr>\n    <th>Number</th>\n    <th>Status</th>\n    <th>Amount</th>\n  </tr>\n  <tr>\n    <td>INV-0044</td>\n    <td>sent</td>\n    <td>$4,171.00</td>\n  </tr>\n  <tr>\n    <td>INV-0043</td>\n    <td>paid</td>\n    <td>$3,345.00</td>\n  </tr>\n</table>",
+    check: (doc) => {
+      const ths = [...doc.querySelectorAll("th")].map((t) => t.textContent.trim().toLowerCase())
+      const dataRows = [...doc.querySelectorAll("tr")].filter((r) => r.querySelectorAll("td").length >= 3)
+      return ["number", "status", "amount"].every((h) => ths.includes(h)) && dataRows.length >= 2
+    },
+    success: "That's a table. Every admin screen you'll ever support has a few.",
+  },
+  "l3-badges": {
+    prompt: "<p>The overdue badge is invisible: white text, no background. Add a rule so elements with classes <code>badge</code> <em>and</em> <code>overdue</code> get the background <code>#c62f24</code>.</p>",
+    hints: ["Copy the <code>.badge.paid</code> rule and change both the class and the color.", "<code>.badge.overdue { background: #c62f24; }</code>"],
+    solutionText: ".badge.overdue {\n  background: #c62f24;\n}",
+    check: (doc, win) => {
+      const el = doc.querySelector(".badge.overdue")
+      return !!el && win.getComputedStyle(el).backgroundColor === "rgb(198, 47, 36)"
+    },
+    success: "That's the fix in miniature. Keep this one in mind for later in the lesson.",
+  },
+  "l3-box": {
+    prompt: "<p>Give the card <code>16px</code> of padding, a <code>1px solid #d5dae6</code> border, and an <code>8px</code> border-radius (rounded corners).</p>",
+    hints: ["Three properties inside the <code>.card</code> rule: <code>padding</code>, <code>border</code>, <code>border-radius</code>.", "<code>padding: 16px; border: 1px solid #d5dae6; border-radius: 8px;</code>"],
+    solutionText: ".card {\n  background: #f7f8fb;\n  padding: 16px;\n  border: 1px solid #d5dae6;\n  border-radius: 8px;\n}",
+    check: (doc, win) => {
+      const s = win.getComputedStyle(doc.querySelector(".card"))
+      return s.paddingTop === "16px" && s.paddingLeft === "16px" && s.borderTopWidth === "1px" && s.borderTopStyle === "solid" && s.borderTopLeftRadius === "8px"
+    },
+    success: "Now it looks like a card. Padding inside, border at the edge.",
+  },
+  "l3-flex": {
+    prompt: "<p>Make <code>.page-header</code> a flex container with the heading on the left and the button pushed to the far right, both centered vertically.</p>",
+    hints: ["Start with <code>display: flex;</code>", "<code>justify-content: space-between;</code> pushes the children to opposite ends. <code>align-items: center;</code> lines them up vertically."],
+    solutionText: ".page-header {\n  display: flex;\n  justify-content: space-between;\n  align-items: center;\n}",
+    check: (doc, win) => {
+      const s = win.getComputedStyle(doc.querySelector(".page-header"))
+      return s.display === "flex" && s.justifyContent === "space-between" && s.alignItems === "center"
+    },
+    success: "That's exactly how the real Paperkite header is built.",
+  },
+  "l3-specificity": {
+    prompt: "<p>The warning should be red (<code>#c62f24</code>) but it's navy. <strong>Without editing the HTML or using <code>!important</code></strong>, make the warning red. Why does <code>.warning</code> lose right now?</p>",
+    hints: ["<code>#notice p</code> contains an id, which beats a selector made of only a class, even though <code>.warning</code> comes later.", "Make the red rule at least as specific and keep it later, for example <code>#notice .warning</code>."],
+    solutionText: "#notice .warning {\n  color: #c62f24;\n}\n\n/* #notice .warning has an id AND a class, so it beats #notice p (an id and an element). */",
+    check: (doc, win, src) => win.getComputedStyle(doc.querySelector(".warning")).color === "rgb(198, 47, 36)" && !/!important/.test(src.css) && doc.querySelector("#notice p.warning") !== null,
+    success: "Right. The id in #notice p outranked the class, until your selector had an id too.",
+  },
+  "l3-badge-bug": {
+    kind: "DevTools",
+    prompt: "<p>Inspect an overdue invoice's blank status badge on the <a href=\"portal.html\" target=\"_blank\">Paperkite page</a>. What's wrong with it? Type the exact class name the badge has instead of <code>overdue</code>.</p>",
+    placeholder: "the class you found",
+    hints: ["Right-click the blank-looking status cell, choose Inspect, and read the <code>class=\"…\"</code> attribute on the selected <code>&lt;span&gt;</code>.", "It has two classes. One is <code>badge</code>. Read the other one letter by letter."],
+    solutionText: "overdeu (a typo for overdue)",
+    check: (v) => (v.toLowerCase().replace(/^\./, "").includes("overdeu") ? true : v.toLowerCase().includes("overdue") ? "That's what it should be. Read the class attribute letter by letter." : "Not that one. Look at the class attribute on the blank badge."),
+    success: "Found it: a typo. No .badge.overdeu rule exists, so the label gets white text on no background.",
+  },
+  "l3-request-id": {
+    kind: "DevTools",
+    prompt: "<p>Click Export CSV on the <a href=\"portal.html\" target=\"_blank\">Paperkite page</a> with the Network tab open. Paste the value of the <code>X-Request-Id</code> response header from the failed request.</p>",
+    placeholder: "req_…",
+    hints: ["In Network, click the row named <code>export</code>. In the Headers section, scroll to Response Headers.", "It starts with <code>req_</code>. Every request gets a different one, so it has to be from a request you made."],
+    solutionText: "Any id like req_abc123… that you copied from the Response Headers of a failed export.",
+    check: async (v) => {
+      const r = await (await fetch("/course/request?id=" + encodeURIComponent(v))).json()
+      if (!r.found) return "That request id isn't in Paperkite's logs. Copy it from the X-Request-Id response header."
+      if (r.path !== "/api/v1/invoices/export") return "That's a real request, but it was " + r.path + ". Find the export one."
+      if (r.status !== 500) return "That's an export request, but it returned " + r.status + ". Find a failed one."
+      return true
+    },
+    success: "That's the one. A request id is what lets support and engineering find one exact request in the logs. Lesson 6 uses this.",
+  },
+}
+</script>
+</body>
+</html>

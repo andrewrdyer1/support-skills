@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lists, Dicts and Loops</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="8">
+<main>
+
+<p class="kicker">Lesson 8 · Python basics, part 2 · about 50 minutes</p>
+<h1>Lists, dicts and loops</h1>
+<p class="lede">Lesson 7 handled one value at a time. Support work is never one ticket: it's
+the queue, the export, the API response with 200 invoices in it. This lesson is about holding
+many things and doing something to each of them.</p>
+
+<div class="box tip">
+  <span class="tag">Indentation is part of the language</span>
+  <p>From here on, code has lines that end in <code>:</code> followed by an
+  <strong>indented block</strong>. The indent (4 spaces) is how Python knows which lines belong
+  to the <code>for</code> or the <code>if</code>. Get it wrong and the code means something
+  else, or doesn't run at all. In these editors, <kbd>Tab</kbd> indents by 4 spaces and
+  <kbd>Enter</kbd> after a <code>:</code> indents the next line for you.</p>
+</div>
+
+<h2>1. Lists</h2>
+
+<p>A <strong>list</strong> is an ordered collection, written in square brackets. Like strings,
+positions start at 0, <code>-1</code> is the last item, and slices work the same way.</p>
+
+<div class="py"><textarea>statuses = ["open", "pending", "open", "solved"]
+
+print(statuses[0])          # the first item
+print(statuses[-1])         # the last item
+print(len(statuses))        # how many: 4
+print("pending" in statuses)
+print(statuses.count("open"))
+
+statuses.append("closed")   # add to the end; this changes the list itself
+print(statuses)</textarea></div>
+
+<p>Lists of numbers have a few built-in helpers: <code>sum(amounts)</code>,
+<code>min(amounts)</code>, <code>max(amounts)</code>, and <code>sorted(amounts)</code>, which
+gives back a new list in order.</p>
+
+<div class="exercise" data-id="py2-index"></div>
+
+<h2>2. for loops</h2>
+
+<p>A <code>for</code> loop runs its indented block once for each item, with a name you choose
+holding the current item:</p>
+
+<div class="py"><textarea>subjects = ["Logo upload", "Card declined", "Export broken"]
+
+for subject in subjects:
+    print("Working on:", subject)
+
+print("All done")   # not indented, so it runs once, after the loop</textarea></div>
+
+<p>The most common loop keeps a running result: start empty or at zero before the loop, update
+it inside, use it after.</p>
+
+<div class="py"><textarea>amounts = [713.50, 3968.00, 2260.25]
+
+total = 0
+for amount in amounts:
+    total = total + amount
+    print("after", amount, "the total is", total)
+
+print("Total:", total)</textarea></div>
+
+<p>To repeat something a set number of times, loop over <code>range(n)</code>, which counts
+from 0 up to <code>n - 1</code>: <code>for attempt in range(3):</code> runs three times.</p>
+
+<div class="exercise" data-id="py2-total-loop"></div>
+
+<h2>3. Making decisions</h2>
+
+<p><code>if</code> runs its block only when the condition is true. <code>elif</code> ("else
+if") tries another condition, and <code>else</code> catches everything left. Only the first
+matching branch runs.</p>
+
+<div class="py"><textarea>hours_waiting = 5
+priority = "high"
+
+if priority == "urgent" and hours_waiting > 1:
+    print("Page someone now")
+elif priority == "high" and hours_waiting > 4:
+    print("Late: reply next")
+else:
+    print("On track")</textarea></div>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Means</th></tr>
+  <tr><td><code>==</code>, <code>!=</code></td><td>equal, not equal. One <code>=</code> stores a value; two compare.</td></tr>
+  <tr><td><code>&lt;</code> <code>&lt;=</code> <code>&gt;</code> <code>&gt;=</code></td><td>less than, at most, more than, at least</td></tr>
+  <tr><td><code>and</code>, <code>or</code>, <code>not</code></td><td>combine conditions, as in SQL</td></tr>
+  <tr><td><code>x in [...]</code></td><td>is one of these: <code>status in ["open", "pending"]</code></td></tr>
+  <tr><td><code>x is None</code></td><td>has no value. Use <code>is None</code>, not <code>== None</code>.</td></tr>
+</table>
+</div>
+
+<div class="box careful">
+  <span class="tag">Truthiness</span>
+  <p>You'll see <code>if tickets:</code> with no comparison. Python treats some values as false
+  on their own: <code>None</code>, <code>0</code>, <code>""</code> (empty text), and
+  <code>[]</code> (an empty list). Everything else counts as true. So <code>if tickets:</code>
+  means "if there are any tickets." It's handy, and it's a trap: a price of <code>0</code> or an
+  empty name also counts as false. When you mean "has no value", write <code>is None</code>.</p>
+</div>
+
+<div class="exercise" data-id="py2-filter"></div>
+
+<h2>4. Dicts</h2>
+
+<p>A <strong>dict</strong> (dictionary) stores values under <strong>keys</strong>, in curly
+brackets. If you've seen JSON, you've seen dicts: it's the same shape.</p>
+
+<div class="py"><textarea>ticket = {"id": 1152, "status": "open", "priority": "high", "assignee": None}
+
+print(ticket["status"])                 # look up a key
+ticket["status"] = "pending"            # change a value
+ticket["tags"] = ["export"]             # add a new key
+print(ticket)
+
+print(ticket.get("customer"))           # missing key: None instead of a crash
+print(ticket.get("customer", "unknown"))  # or a default of your choice
+
+for key, value in ticket.items():       # loop over key/value pairs
+    print(key, "=", value)
+
+print(ticket["customer"])               # missing key with []: KeyError</textarea></div>
+
+<p>Use <code>ticket["status"]</code> when the key is always there and a missing one is a real
+problem you'd want to hear about. Use <code>ticket.get("status")</code> when it might not be
+there. Data from outside your script is the second kind more often than you'd hope.</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Write</th><th>Key is there</th><th>Key is missing</th></tr>
+  <tr><td><code>PRICES["pro"]</code></td><td>the value</td><td><code>KeyError</code>: the script stops</td></tr>
+  <tr><td><code>PRICES.get("pro")</code></td><td>the value</td><td><code>None</code></td></tr>
+  <tr><td><code>PRICES.get("pro", 0)</code></td><td>the value</td><td><code>0</code>, or whatever fallback you give</td></tr>
+</table>
+</div>
+
+<p><code>None</code> is Python's version of SQL's <code>NULL</code> and JSON's <code>null</code>:
+"no value". You test for it with <code>is None</code> and <code>is not None</code>, just as SQL
+uses <code>is null</code>. Square brackets never give you <code>None</code> for a missing key,
+so this crashes before the check runs:</p>
+
+<div class="py"><textarea>PRICES = {"free": 0, "pro": 4900}
+
+price = PRICES.get("gold")
+print(price, price is None)   # None True: safe to check
+
+if PRICES["gold"] is None:    # KeyError: never gets as far as "is None"
+    print("unknown plan")</textarea></div>
+
+<div class="box tip">
+  <span class="tag">Quotes or no quotes</span>
+  <p><code>ticket["client"]</code> with quotes means the key spelled c-l-i-e-n-t.
+  <code>totals[client]</code> with no quotes means "whatever is in my variable
+  <code>client</code> right now", which might be <code>"Lakeshore Group"</code> on one pass of a
+  loop and <code>"Greenway Farms"</code> on the next. Quotes are the literal word; no quotes is a
+  variable's value.</p>
+</div>
+
+<h3>A first look at functions</h3>
+
+<p>The next few exercises ask you to fill in a small <strong>function</strong>. Lesson 9 covers
+them properly; here's just enough to read one.</p>
+
+<pre>def describe(plan):          # def, the function's name, its input in brackets, a colon
+    price = PRICES.get(plan) # the indented body: runs only when the function is called
+    return f"{plan}: ..."    # return hands the answer back to whoever called it</pre>
+
+<ul>
+  <li><strong><code>def</code> doesn't run anything.</strong> It writes the recipe down.
+    Nothing inside happens until a line <em>calls</em> it, like <code>describe("pro")</code>.</li>
+  <li><strong>The name in brackets is a placeholder.</strong> In
+    <code>describe("pro")</code>, <code>plan</code> is <code>"pro"</code> for that one call; in
+    <code>describe("gold")</code>, it's <code>"gold"</code>.</li>
+  <li><strong><code>return</code>, not <code>print</code>.</strong> <code>return</code> gives the
+    answer back to the caller, which can store it or print it. <code>print</code> only shows it
+    on screen, and the caller gets <code>None</code>.</li>
+  <li><strong>The Check button calls your function with its own data.</strong> It tests
+    whether your function works for any input, not just the example at the bottom. If you put a
+    <code>print</code> inside, you'll see the checker's values appear, not yours.</li>
+</ul>
+
+<div class="py"><textarea>def hours_late(waited, promised):
+    return waited - promised
+
+
+print(hours_late(30, 24))    # calls it with waited=30, promised=24: prints 6
+late = hours_late(50, 48)    # store the answer instead
+print("late by", late)</textarea></div>
+
+<div class="exercise" data-id="py2-plan-price"></div>
+
+<h2>5. Lists of dicts: what API data looks like</h2>
+
+<p>In Lesson 5, an API sent back JSON like <code>{"data": [{…}, {…}], "has_more": true}</code>.
+In Python, that's a dict, holding a list, holding dicts. You get to anything inside by going in
+one step at a time:</p>
+
+<div class="py"><textarea>response = {
+    "data": [
+        {"id": 1152, "requester": {"email": "maya@harborandpine.com"}, "tags": ["export"]},
+        {"id": 1188, "requester": {"email": "kai@bluecleaning.io"}, "tags": ["billing", "refund"]},
+    ],
+    "has_more": False,
+}
+
+tickets = response["data"]           # the list
+first = tickets[0]                   # the first dict in it
+print(first["requester"]["email"])   # a dict inside that dict
+
+for ticket in tickets:
+    print(ticket["id"], ticket["requester"]["email"], len(ticket["tags"]), "tags")</textarea></div>
+
+<p>When you're lost in nested data, print one level at a time. <code>print(type(x))</code> tells
+you whether you're holding a dict (look things up by key) or a list (loop over it).</p>
+
+<div class="exercise" data-id="py2-nested"></div>
+
+<h2>6. Counting and adding up by group</h2>
+
+<p>The single most useful pattern in support scripts is SQL's <code>group by</code>, done with a
+dict: one key per group, and add to it as you loop.</p>
+
+<div class="py"><textarea>tickets = [{"status": "open"}, {"status": "solved"}, {"status": "open"}]
+
+counts = {}
+for ticket in tickets:
+    status = ticket["status"]
+    counts[status] = counts.get(status, 0) + 1   # 0 if we haven't seen it yet, then add 1
+
+print(counts)</textarea></div>
+
+<div class="exercise" data-id="py2-group-sum"></div>
+
+<h2>7. while and break</h2>
+
+<p><code>while</code> repeats as long as its condition stays true. <code>break</code> leaves any
+loop early. You'll meet them together in Lesson 13, retrying an API call that failed:</p>
+
+<div class="py"><textarea>attempt = 1
+while attempt <= 3:
+    print("trying, attempt", attempt)
+    succeeded = attempt == 2       # pretend the second try works
+    if succeeded:
+        print("worked")
+        break
+    attempt += 1                   # shorthand for attempt = attempt + 1</textarea></div>
+
+<p>A <code>while</code> loop whose condition never becomes false runs forever. If a script seems
+stuck, <kbd>Ctrl</kbd> <kbd>C</kbd> stops it.</p>
+
+<h2>8. In your editor: a queue view</h2>
+
+<p>Open <code>workspace/lesson8/queue.py</code>. It has eight tickets and three
+<code># TODO</code>s. When it's done, it prints the tickets that still need someone (open or
+pending), oldest first. Run it from the <code>workspace</code> folder as you go:</p>
+
+<pre>python lesson8/queue.py</pre>
+
+<p>It runs before you change anything: it just prints <code>0 tickets waiting</code>. Fill in
+one TODO at a time and run it after each. A finished version is in
+<code>course/solutions/lesson8/queue.py</code> if you're stuck for more than ten minutes.</p>
+
+<div class="find" data-check="py2-queue"></div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li>Lists: <code>[a, b]</code>; <code>x[0]</code>, <code>x[-1]</code>, <code>len(x)</code>, <code>.append()</code>, <code>in</code>, <code>sum/min/max/sorted</code>.</li>
+  <li><code>for item in items:</code> plus an indented block. Keep a running total that starts before the loop.</li>
+  <li><code>if / elif / else</code>; <code>==</code> compares, <code>=</code> stores; <code>is None</code> for "no value". Empty things and 0 count as false.</li>
+  <li>Dicts: <code>d["key"]</code> when it must be there, <code>d.get("key", default)</code> when it might not be.</li>
+  <li>API data is dicts and lists inside each other: go in one level at a time.</li>
+  <li>Group with a dict: <code>counts[k] = counts.get(k, 0) + 1</code>.</li>
+</ul>
+
+</main>
+<script>
+window.COURSE_CHECKS = {
+  "py2-queue": {
+    kind: "In your editor",
+    prompt: "<p>Paste the <strong>second</strong> line your finished script prints: the first ticket in the queue.</p>",
+    placeholder: "#…",
+    hints: ["<code>needs_someone</code>: <code>return ticket[\"status\"] in (\"open\", \"pending\")</code>.", "In <code>main</code>, loop over <code>TICKETS</code> and <code>waiting.append(ticket)</code> when <code>needs_someone(ticket)</code> is true. Then loop over <code>waiting</code> and print <code>queue_line(ticket)</code>.", "<code>queue_line</code> is one f-string. The date is <code>ticket[\"created_at\"][:10]</code>."],
+    solutionText: "#1185 [high] Zapier says our key is invalid (opened 2026-10-26)",
+    check: (v) => {
+      const s = v.trim()
+      if (s === "#1185 [high] Zapier says our key is invalid (opened 2026-10-26)") return true
+      if (s.startsWith("5 tickets")) return "That's the first line. Paste the one after it."
+      if (s.includes("1188")) return "Close: that's the urgent one, but it isn't the oldest. Is the list sorted after you fill it?"
+      if (s.includes("1185")) return "Right ticket. Check the format: #id [priority] subject (opened YYYY-MM-DD)."
+      return "Not that one. The first line should say 5 tickets waiting; paste the line after it."
+    },
+    success: "Five tickets waiting, oldest first. Filter, sort, format: you just wrote a help desk view.",
+  },
+}
+</script>
+</body>
+</html>

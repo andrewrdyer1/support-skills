@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Support Skills</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body>
+<main>
+
+<p class="kicker">A hands-on course</p>
+<h1>Support engineering skills</h1>
+<p class="lede">SQL, HTML and CSS, HTTP and APIs, debugging a real incident, and Python
+scripts with tests: the technical side of support engineer and CX operations roles,
+learned by doing the job.</p>
+
+<p>You've just joined support at <strong>Paperkite</strong>, a made-up invoicing app for small
+businesses. It runs entirely on your Mac: a real Postgres database with about 240 customer
+accounts, a real API you can call with curl, real logs, and one real bug waiting in Lesson 6.
+Every lesson starts with a customer ticket and ends with you answering it.</p>
+
+<ul class="lessons" id="lessons"></ul>
+
+<div class="box tip">
+  <span class="tag">How it works</span>
+  <p>Grey boxes with a <strong>Run</strong> or <strong>Send</strong> button are live. Edit
+  anything. You can't break the data: your database access is read-only, and the API runs in
+  test mode. Exercises check your answer and remember your progress in this browser.</p>
+  <p>To start the course again later: open Terminal, <code>cd ~/Developer/support-skills</code>,
+  run <code>npm start</code>, and visit <code>localhost:4747</code>. To put the data back the
+  way it started, run <code>npm run reset</code>.</p>
+</div>
+
+</main>
+<script>
+document.addEventListener("DOMContentLoaded", () => {
+  const { LESSONS, progress } = window.Course
+  document.getElementById("lessons").innerHTML = LESSONS.map((l) => {
+    const c = progress.counts[l.n]
+    const p = c && c.total ? `<div class="p">${c.done} of ${c.total} exercises done</div>` : ""
+    return `<li><a class="card" href="${l.file}"><div class="n">Lesson ${l.n} · about ${l.mins} min</div><div class="t">${l.title}</div><div class="d">${l.sub}</div>${p}</a></li>`
+  }).join("")
+})
+</script>
+</body>
+</html>

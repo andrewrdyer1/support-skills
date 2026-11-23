@@ -1,0 +1,240 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Script Cases</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="15">
+<main>
+
+<p class="kicker">Lesson 15 · four script cases · about 2 hours, at your own pace</p>
+<h1>Script cases</h1>
+<p class="lede">Four real support tasks. Each has a short spec, a test suite, and an empty
+starter. No step-by-step this time: read the spec, read the tests, plan, build, run. This is
+what a take-home exercise for a support engineering job looks like.</p>
+
+<div class="box tip">
+  <span class="tag">How to work a case</span>
+  <ol>
+    <li><strong>Read the spec</strong> at the top of the starter file. It's the "ticket."</li>
+    <li><strong>Read the tests.</strong> They're the precise version of the spec: exact
+      outputs, edge cases, what counts as done.</li>
+    <li><strong>Plan in comments</strong> before writing code: one line per step.</li>
+    <li><strong>Build one function at a time</strong>, running just its tests
+      (<code>-k name</code>).</li>
+    <li><strong>Run the real script</strong> and read the output like the person who asked for
+      it would.</li>
+  </ol>
+  <p>All four live in <code>workspace/lesson15/</code>. Run every case's tests with
+  <code>python -m pytest lesson15</code>, or one case with
+  <code>python -m pytest lesson15/test_sla_alert.py</code>. Finished versions are in
+  <code>course/solutions/lesson15/</code>.</p>
+</div>
+
+<h2>Warm up: SQL from Python</h2>
+
+<p>Two of the cases query the database directly with <code>psycopg</code>, the standard Postgres
+library. The pattern is always the same:</p>
+
+<pre>import psycopg
+
+with psycopg.connect("postgresql://learner@localhost:5488/paperkite") as conn:
+    with conn.cursor() as cur:
+        cur.execute("select id, name from accounts where status = %s", ("past_due",))
+        rows = cur.fetchall()        # a list of tuples: [(153, "Sable Dental"), ...]</pre>
+
+<div class="box careful">
+  <span class="tag">Never build SQL with f-strings</span>
+  <p><code>cur.execute(f"... where name = '{name}'")</code> works until a customer's name
+  contains a quote, and then it's either an error or, if the text came from a user, a
+  <strong>SQL injection</strong> hole: whoever controls the text controls the query. Always
+  put <code>%s</code> in the SQL and pass the values separately. psycopg sends them apart
+  from the query, so they can never be run as SQL.</p>
+</div>
+
+<p>Values come back as Python types: <code>timestamptz</code> columns are <code>datetime</code>
+objects (with a timezone), <code>date</code> columns are <code>date</code> objects, and
+<code>null</code> is <code>None</code>.</p>
+
+<div class="exercise" data-id="p10-psycopg"></div>
+
+<h2>Case A: invites nobody accepted</h2>
+
+<div class="box ticket">
+  <span class="tag">From the CX operations lead</span>
+  <p>Sam's invite typo made me wonder how many more there are. Can you get me everyone who was
+  invited more than a week ago and still hasn't logged in, on accounts that are active or in
+  trial? Flag the likely typos. We'll reach out to the account owners.</p>
+</div>
+
+<p><strong>File:</strong> <code>lesson15/stuck_invites.py</code> · <strong>Tests:</strong>
+<code>test_stuck_invites.py</code> · <strong>Uses:</strong> SQL from Lessons 1 and 2, psycopg,
+dates, CSV.</p>
+
+<p><strong>Done when:</strong> all 7 tests pass, and the script prints 47 stuck invites with
+one possible typo (Sam's) and writes <code>out/stuck_invites.csv</code>.</p>
+
+<details class="quiz">
+  <summary>Hint 1: the query</summary>
+  <div class="answer"><p>You need the user, their account, <em>and</em> the account's owner, so
+  join <code>users</code> twice: once as the invited user (<code>u</code>) and once as the owner
+  (<code>o</code>, with <code>o.role = 'owner'</code> in the join condition). Then filter:
+  not an owner, never logged in, created on or before the cutoff, account active or
+  trialing.</p></div>
+</details>
+<details class="quiz">
+  <summary>Hint 2: the cutoff and the date</summary>
+  <div class="answer"><p><code>from datetime import timedelta</code>; the cutoff is
+  <code>today - timedelta(days=7)</code>, passed as the <code>%s</code>. The
+  <code>created_at</code> you get back is a datetime; <code>created_at.date().isoformat()</code>
+  gives <code>"2026-10-20"</code>.</p></div>
+</details>
+<details class="quiz">
+  <summary>Hint 3: looks_like_typo</summary>
+  <div class="answer"><p>Compare the lowercase part after the <code>@</code>:
+  <code>email.split("@")[-1].lower()</code>. Priya's mixed-case address must <em>not</em> count
+  as a typo.</p></div>
+</details>
+
+<h2>Case B: revoked keys still knocking</h2>
+
+<div class="box ticket">
+  <span class="tag">From the integrations team</span>
+  <p>When a customer revokes a key but forgets to update the integration using it, the
+  integration fails quietly forever. Can we find the ones still trying? Those customers
+  probably have a broken sync and don't know.</p>
+</div>
+
+<p><strong>File:</strong> <code>lesson15/revoked_keys.py</code> · <strong>Uses:</strong>
+log parsing from Lesson 12, psycopg, dicts keyed by tuples.</p>
+
+<p><strong>The wrinkle:</strong> logs record a key's <em>label</em>, never the key itself, and
+labels aren't unique. Account 39 has two keys called "Accounting sync": one revoked, one
+active. You can't tell from the log which one made each request, so the report notes it. That
+note is exactly the kind of detail that makes a support report trustworthy.</p>
+
+<p><strong>Done when:</strong> 4 tests pass and the script lists 5 revoked keys still in use,
+led by account 39 and account 189 with 14 attempts each, account 39 carrying the note.</p>
+
+<details class="quiz">
+  <summary>Hint 1: shape of the data</summary>
+  <div class="answer"><p>Build a dict keyed by <code>(account_id, label)</code> from the
+  <code>api_keys</code> table. <code>dict.setdefault(key, {...})</code> gets the existing value
+  or inserts a default, which is handy when several keys share a label.</p></div>
+</details>
+<details class="quiz">
+  <summary>Hint 2: counting and the latest time</summary>
+  <div class="answer"><p>Log times are ISO strings, which compare correctly as text, so
+  <code>max(row["last_attempt"], e["time"])</code> keeps the latest. Sort with
+  <code>key=lambda r: (-r["attempts"], r["account_id"])</code>: the minus sign sorts attempts
+  biggest first, and account_id breaks ties.</p></div>
+</details>
+
+<h2>Case C: clean a messy import</h2>
+
+<div class="box ticket">
+  <span class="tag">From an onboarding specialist</span>
+  <p>Copper Studio sent their team list to bulk-import (<code>data/contacts_import.csv</code>).
+  It's a mess: capitals, spaces, duplicates, some emails that aren't emails. Can you give me a
+  clean file to import and a list of what you rejected and why, so I can send it back to
+  them?</p>
+</div>
+
+<p><strong>File:</strong> <code>lesson15/clean_import.py</code> · <strong>Uses:</strong> CSV,
+string cleaning from Lesson 11, a regular expression, sets.</p>
+
+<p>Open the CSV first (<code>open data/contacts_import.csv</code>) and look at it. The rules are
+in the spec at the top of the file.</p>
+
+<p><strong>Regular expressions</strong> describe text patterns. You need one, for "plausible
+email":</p>
+
+<pre>import re
+EMAIL = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
+EMAIL.match("ruth.ueda@copperstudio.com")   # a match object (truthy)
+EMAIL.match("pat.doyle@copperstudio")       # None</pre>
+
+<p>Read it as: from the start (<code>^</code>), one or more characters that aren't
+<code>@</code> or whitespace, then <code>@</code>, then more of those, a literal dot
+(<code>\.</code>), more of those, and the end (<code>$</code>). It's not perfect email
+validation (nothing short is), but it catches every real mistake in this file.</p>
+
+<p><strong>Done when:</strong> 5 tests pass, and the script reports 58 rows: 46 ready to import,
+12 rejected, each with its line number in the original file.</p>
+
+<details class="quiz">
+  <summary>Hint: duplicates and line numbers</summary>
+  <div class="answer"><p>Keep a <code>set</code> of emails you've accepted; if a cleaned email
+  is already in it, reject the row as <code>"duplicate"</code>.
+  <code>for line, row in enumerate(rows, start=2):</code> numbers the rows from 2, because
+  line 1 is the header. Reject rows with their <em>original</em> values, so the customer
+  recognizes them.</p></div>
+</details>
+
+<h2>Case D: response-time alert</h2>
+
+<div class="box ticket">
+  <span class="tag">From the support lead</span>
+  <p>Two urgent tickets sat unanswered over a weekend last month. I want a script we can run
+  every half hour that posts in Slack if any urgent or high ticket has gone past its target
+  with no reply at all.</p>
+</div>
+
+<p><strong>File:</strong> <code>lesson15/sla_alert.py</code> · <strong>Uses:</strong> the
+help desk API, datetimes and timezones, exit codes.</p>
+
+<p><strong>Timezones:</strong> the API sends times like <code>2026-10-29T13:21:13.325Z</code>.
+The <code>Z</code> means UTC. <code>datetime.fromisoformat(text.replace("Z", "+00:00"))</code>
+turns that into a timezone-aware datetime. Subtracting two datetimes gives a
+<code>timedelta</code>; <code>.total_seconds() / 3600</code> is hours. Always compare times
+that both carry a timezone, or Python will refuse.</p>
+
+<p><strong>Exit codes</strong> are how scripts talk to schedulers: <code>0</code> means "all
+fine," anything else means "do something." A scheduler (cron, GitHub Actions, a monitoring
+tool) can post to Slack only when the exit code is 1. That's why <code>main</code> returns 1
+when there are breaches.</p>
+
+<p><strong>Done when:</strong> 4 tests pass, and the script prints an alert for 2 tickets
+(#592 and #864, both high priority, waiting over a day) and exits with code 1. Check the exit
+code with <code>echo $?</code> right after running it.</p>
+
+<details class="quiz">
+  <summary>Hint: which tickets count</summary>
+  <div class="answer"><p>Priority must be in <code>TARGET_HOURS</code> (urgent or high),
+  <code>first_response_at</code> must be empty, and the hours waited must be strictly greater
+  than the target. Exactly 4 hours for a high ticket is not yet a breach. The test checks that
+  edge.</p></div>
+</details>
+
+<h2>After the cases</h2>
+
+<p>You've now written the four kinds of script support teams lean on most: a report from the
+database, a report from logs, a data cleanup, and an alert. With Lesson 14's bulk update, that's
+five. For interviews:</p>
+
+<ul>
+  <li><strong>Put them on GitHub.</strong> A repo with these scripts, their tests, and a README
+    explaining what each solves is a better answer to "do you have scripting experience?"
+    than any course certificate. (Remove anything you didn't write, like the course's own
+    files, and keep the data made-up.)</li>
+  <li><strong>Be ready to explain one end to end:</strong> what it was for, why it's safe to
+    run, how you tested it, and what you'd improve.</li>
+  <li><strong>Mention the judgment calls:</strong> the ambiguous labels in Case B, the reply-then-tag
+    order in Lesson 14, the "exactly 4 hours" edge in Case D. Interviewers remember
+    candidates who noticed the edges.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">Where to go next</span>
+  <p>Once these feel comfortable: schedule Case D for real with cron or a GitHub Action; build a
+  small dashboard of Lesson 12's numbers; or point Lesson 13's approach at a real public API you
+  use (GitHub's and Stripe's test mode are both friendly). Each is a short step from what you
+  just built.</p>
+</div>
+
+</main>
+</body>
+</html>

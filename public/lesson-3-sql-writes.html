@@ -1,0 +1,272 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Changing Data Safely</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="3">
+<main>
+
+<p class="kicker">Lesson 3 · INSERT, UPDATE, DELETE and transactions · about 45 minutes</p>
+<h1>Changing data safely</h1>
+<p class="lede">Writing to a database takes ten minutes to learn. Doing it without ever
+hurting a customer is a set of habits, and the habits are what interviewers ask about.</p>
+
+<div class="box ticket">
+  <span class="tag">Ticket #1151 · reply from Maya</span>
+  <p class="meta">From maya@harborandpine.com · Oct 30, 2:03 PM</p>
+  <p>Thanks for finding that! I tried removing Sam like you said, but the Team page won't let
+  me. It says he has a pending invite. Can you fix it on your end?</p>
+</div>
+
+<div class="box ticket">
+  <span class="tag">Slack · #support-engineering</span>
+  <p>Known gap, the Team page can't edit pending invites (engineering has a ticket). Fix the
+  address in the database, then hit Resend invite in the admin panel. Checklist as usual, and
+  put the before and after in the ticket.</p>
+</div>
+
+<p>Lesson 1's rule still stands: if a tool or admin page can make the change, use it, because
+the tool also does the things around the change (sending the invite, writing an audit log).
+A hand-written query is the fallback for when the tool can't. Many companies never give
+support write access at all. The ones that do expect you to follow a checklist like this
+lesson's, and often to have a second person read your query first.</p>
+
+<h2>1. This lesson's practice database</h2>
+
+<p>Every editor in Lesson 1 and 2 was read-only. The ones in this lesson say
+<strong>practice writes, always rolled back</strong>: your statement really runs, and you see
+exactly what it changed, then everything is undone. Nothing you do here is saved, so the other
+lessons see the same data. Try deliberately doing the worst thing you can:</p>
+
+<div class="sql" data-mode="write"><textarea>update accounts
+set status = 'canceled'
+returning id, name, status;</textarea></div>
+
+<p><code>UPDATE 240</code>. Every customer just canceled. No <code>where</code> means every
+row. In production that's an incident, a restore from backup, and a very long day for
+everyone. Here, it was rolled back before you saw it.</p>
+
+<h2>2. UPDATE</h2>
+
+<pre>update table_name
+set column = new_value, other_column = other_value
+where which_rows
+returning the_columns_you_want_to_see;</pre>
+
+<ul>
+  <li><code>set</code> lists the changes, separated by commas.</li>
+  <li><code>where</code> works exactly like in a <code>select</code>. It decides which rows
+    change. Leave it out and the answer is "all of them."</li>
+  <li><code>returning</code> is optional and shows the changed rows, like a
+    <code>select</code> of just what you touched. It's a Postgres feature (SQLite has it too;
+    SQL Server's version is called <code>output</code>; MySQL has none, so there you run the
+    <code>select</code> again afterwards).</li>
+</ul>
+
+<p>When an update finishes, the database tells you how many rows it changed:
+<code>UPDATE 1</code>, <code>UPDATE 240</code>, <code>UPDATE 0</code>. That number is the most
+important thing on your screen. Before you run anything, you should already know what it
+should be.</p>
+
+<h2>3. The checklist</h2>
+
+<p>This is the whole lesson in six lines. The rest is practice.</p>
+
+<ol>
+  <li><strong>Select first.</strong> Write a <code>select</code> with the exact
+    <code>where</code> you'll use, and look at the rows. Now you know the count to expect.</li>
+  <li><strong>Save the before.</strong> Paste that <code>select</code>'s output into the ticket.
+    It's your undo: if anything goes wrong, you know the old values.</li>
+  <li><strong>Open a transaction</strong> with <code>begin</code>, so nothing is permanent
+    yet.</li>
+  <li><strong>Run the change</strong>, with <code>returning</code>, and compare the count to
+    step 1.</li>
+  <li><strong>Commit if it matches, roll back if it doesn't.</strong> No exceptions, no
+    "it's probably fine."</li>
+  <li><strong>Target by id</strong> whenever you can. An id matches one row forever; a name or
+    a label might match two, or match a different row next week.</li>
+</ol>
+
+<p>Start with step 1 for Sam:</p>
+
+<div class="exercise" data-id="l3-select-first"></div>
+
+<div class="exercise" data-id="l3-fix-sam"></div>
+
+<h2>4. Transactions: BEGIN, COMMIT, ROLLBACK</h2>
+
+<p>A <strong>transaction</strong> is a group of statements that either all happen or none do.
+You start one with <code>begin</code>. Until you finish it, your changes are visible to you
+but nobody else. Then:</p>
+
+<ul>
+  <li><code>commit</code> makes everything since <code>begin</code> permanent.</li>
+  <li><code>rollback</code> throws it all away, as if you never ran it.</li>
+</ul>
+
+<p>Here's the full checklist as one run. This editor accepts several statements, and shows the
+result of each one in turn:</p>
+
+<div class="sql" data-mode="write"><textarea>begin;
+
+select id, email from users where id = 4;
+
+update users
+set email = 'sam@harborandpine.com'
+where id = 4;
+
+select id, email from users where id = 4;
+
+rollback;</textarea></div>
+
+<p>Before, change, after, undo. Now change the last line to <code>commit;</code> and run it
+again. This practice database refuses every commit, so you get an error instead. In a real
+database, that's the moment the change becomes permanent.</p>
+
+<div class="box careful">
+  <span class="tag">Without BEGIN, every statement commits instantly</span>
+  <p>psql, and most database tools, run in <strong>autocommit</strong> mode: a statement
+  typed on its own is committed the moment it finishes. There is no undo. If you forget
+  <code>begin</code>, the checklist's safety net is gone. Type <code>begin;</code> first, every
+  time, until it's a reflex.</p>
+</div>
+
+<p>In a real terminal it looks like this. The lines starting with <code>paperkite=*</code>
+are inside the transaction: psql adds the <code>*</code> to remind you one is open.</p>
+
+<pre>paperkite=&gt; begin;
+BEGIN
+paperkite=*&gt; update users set email = 'sam@harborandpine.com' where id = 4 returning id, email;
+ id |         email
+----+-----------------------
+  4 | sam@harborandpine.com
+(1 row)
+
+UPDATE 1
+paperkite=*&gt; commit;
+COMMIT</pre>
+
+<div class="box job">
+  <span class="tag">On the job</span>
+  <p><strong>Don't leave a transaction open.</strong> While yours is open, the rows you
+  changed are locked: the app, and the customer clicking Save, wait until you finish.
+  Begin, check, decide, finish. Don't start one and go to lunch.</p>
+</div>
+
+<h2>5. Updates that use the current value</h2>
+
+<p>The right side of <code>set</code> can be any expression, including the column itself:
+<code>set seat_limit = seat_limit + 2</code>. That's how you extend, add or adjust without
+retyping the old value.</p>
+
+<div class="exercise" data-id="l3-trial"></div>
+
+<h2>6. The WHERE that matches too much</h2>
+
+<p>Forgetting the <code>where</code> entirely is rare, because it looks wrong. The real
+mistake is a <code>where</code> that looks right and matches more than you meant. The row
+count is how you catch it.</p>
+
+<div class="exercise" data-id="l3-reassign"></div>
+
+<div class="box tip">
+  <span class="tag">A habit that prevents this</span>
+  <p>Write the change as a <code>select</code> first: <code>select * from tickets where
+  assignee = 'Bea' and status = 'open'</code>. When the rows look right, replace only the
+  first line with <code>update tickets set assignee = 'Dani'</code>. The <code>where</code>
+  you checked is the <code>where</code> you run.</p>
+</div>
+
+<h2>7. INSERT</h2>
+
+<pre>insert into table_name (column, other_column)
+values (value, other_value)
+returning id;</pre>
+
+<p>The column list and the values line up in order. Columns you leave out get their default:
+for an <code>id</code> column, that's the next number from a <strong>sequence</strong>, a
+counter the database keeps for the table. Leave <code>id</code> out and let it choose. Several
+rows at once are just more brackets: <code>values (…), (…), (…)</code>.</p>
+
+<div class="exercise" data-id="l3-insert-client"></div>
+
+<p>Run the answer two or three times with <strong>Just run</strong> and watch the
+<code>id</code> go up, even though every run was rolled back. Sequences never go backwards, not
+even on a rollback, because two people inserting at the same moment must never get the same
+number. This is why real tables have gaps in their ids, and why a missing id never proves a row
+was deleted.</p>
+
+<h2>8. DELETE</h2>
+
+<pre>delete from table_name
+where which_rows
+returning the_columns_you_want_to_see;</pre>
+
+<p>Deleting is the change you can't take back once committed, so most apps avoid it. Instead
+of deleting a key, Paperkite sets <code>revoked_at</code>; instead of deleting an account, it
+sets <code>status = 'canceled'</code>. That's called a <strong>soft delete</strong>, and it
+keeps the history. When a customer asks you to delete something, check first whether the app
+already has a softer way.</p>
+
+<p>The database also protects itself. Try deleting Maya:</p>
+
+<div class="sql" data-mode="write"><textarea>delete from users
+where id = 1;</textarea></div>
+
+<p>A <strong>foreign key</strong> error: her tickets point at her user row
+(<code>tickets.requester_id</code>), and Postgres won't leave them pointing at nothing. When
+you see this error, stop. It's telling you what else depends on that row.</p>
+
+<div class="exercise" data-id="l3-delete-key"></div>
+
+<h2>9. After the change</h2>
+
+<p>The database is right now, but you're not done. A direct write skips everything the app
+would have done around it. Changing Sam's address didn't send him an invite. That's why your
+lead said to hit <strong>Resend invite</strong> in the admin panel afterwards. Then you write
+two things.</p>
+
+<div class="box job">
+  <span class="tag">Internal note on the ticket</span>
+  <p><em>Changed users.id 4 email from sam@harborandpine.co to sam@harborandpine.com (UPDATE 1,
+  checked inside a transaction before commit). Resent the invite from the admin panel. Cause:
+  the Team page can't edit pending invites, linked to the engineering ticket.</em></p>
+  <p>Old value, new value, row count, and why. Anyone reading this later, including you, can
+  see exactly what changed and undo it.</p>
+</div>
+
+<div class="box job">
+  <span class="tag">The reply</span>
+  <p><em>Hi Maya, I've corrected Sam's address to sam@harborandpine.com and sent him a fresh
+  invite. It should arrive within a minute. I'll keep this ticket open until he's in.</em></p>
+</div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>update … set … where … returning …</code>; <code>insert into … (columns) values (…)</code>; <code>delete from … where …</code>.</li>
+  <li>No <code>where</code> means every row. A <code>where</code> that's too loose is the more common mistake.</li>
+  <li>Know the row count before you run the change. If the database says a different number, roll back.</li>
+  <li><code>begin</code> first. <code>commit</code> keeps it, <code>rollback</code> undoes it. Without <code>begin</code>, there's no undo.</li>
+  <li>Target by id. Save the old values in the ticket. Prefer a soft delete or the app's own tool.</li>
+  <li>A direct write skips the app's side effects: do those by hand (resend the invite).</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">Interview prep</span>
+  <p>"How would you safely update a few hundred rows in production?" Your answer is the
+  checklist: select first with the same <code>where</code> and note the count; save the
+  current values; <code>begin</code>; run the update with <code>returning</code>; compare the
+  count; commit only if it matches, otherwise roll back; then do whatever the app would have
+  done (emails, cache) and write it up in the ticket. Mention having someone review the query
+  first, and that you'd rather use an admin tool or the API if one exists. That answer, said
+  calmly, is most of what they're listening for.</p>
+</div>
+
+</main>
+</body>
+</html>

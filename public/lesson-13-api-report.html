@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>API Report Script</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="13">
+<main>
+
+<p class="kicker">Lesson 13 · script case · about 60 minutes</p>
+<h1>Script: an API report</h1>
+<p class="lede">Lesson 5 made API calls one at a time. Scripts make hundreds, and some of them
+fail. This lesson builds a report the way production scripts are built: every page fetched,
+temporary failures retried, permanent ones explained, and secrets kept out of the code.</p>
+
+<div class="box ticket">
+  <span class="tag">From the customer success team</span>
+  <p>Harbor &amp; Pine asked if we can send them a list of their overdue invoices with how late
+  each one is, so they can chase clients before month end. Can you script it? Other customers
+  will want the same thing.</p>
+</div>
+
+<h2>1. Warm up: requests</h2>
+
+<p><code>requests</code> is the Python library for HTTP, and it's what nearly every support
+automation script uses. A request is one function call: <code>requests.get(url,
+headers=…, params=…)</code>. The response has <code>.status_code</code>, <code>.headers</code>,
+<code>.ok</code> (True below 400) and <code>.json()</code>.</p>
+
+<p><strong>Keys come from the environment, not the code.</strong> <code>os.environ</code> is a
+dict of environment variables, settings your terminal passes to every program it runs. Keeping
+the key there means the script can be shared, committed to git, or pasted into a ticket without
+leaking anything. These editors have <code>PAPERKITE_API_KEY</code> set to Harbor &amp; Pine's
+reporting key.</p>
+
+<div class="exercise" data-id="p8-me"></div>
+<div class="exercise" data-id="p8-try-key"></div>
+<div class="exercise" data-id="p8-params"></div>
+
+<h2>2. What a real script has to handle</h2>
+
+<p>Those three work when everything goes right. A script that runs every week for every
+customer needs to handle what goes wrong:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Situation</th><th>What the script should do</th></tr>
+  <tr><td>More results than one page</td><td>Keep asking for the next page while <code>has_more</code> is true.</td></tr>
+  <tr><td><strong>429</strong> rate limited</td><td>Wait <code>Retry-After</code> seconds, then try again.</td></tr>
+  <tr><td><strong>5xx</strong> server error</td><td>Often temporary. Wait a little longer each time (2s, 4s…) and retry a few times. This is called <strong>exponential backoff</strong>.</td></tr>
+  <tr><td>Any other <strong>4xx</strong></td><td>Don't retry: the request itself is wrong. Stop and show the API's message.</td></tr>
+  <tr><td>Server unreachable</td><td>Say so in plain words, not a 40-line traceback.</td></tr>
+  <tr><td>No API key set</td><td>Say how to set it.</td></tr>
+</table>
+</div>
+
+<h3>Exceptions you define yourself</h3>
+
+<p>When a function can't do its job, it can <code>raise</code> an exception, and whoever called
+it decides what to do. The script defines its own:</p>
+
+<pre>class ApiError(Exception):
+    """The API refused the request in a way that retrying won't fix."""</pre>
+
+<p>Then <code>request_with_retry</code> raises <code>ApiError("403 from GET …: The starter plan
+does not include API access.")</code>, and <code>main</code> catches it with <code>except
+ApiError as e:</code> and prints a clean message. Low-level code reports problems; top-level
+code decides how to show them.</p>
+
+<h3>Testing code that talks to a server</h3>
+
+<p>How do you test "waits 7 seconds after a 429, then succeeds" without waiting 7 seconds or
+making the server misbehave? You give the function a <strong>fake</strong>. Open
+<code>test_overdue_report.py</code> and look at <code>FakeSession</code>: it has the same
+<code>.request(…)</code> method as a real requests Session, but returns responses the test
+chose, and records what was asked. And <code>request_with_retry</code> takes
+<code>sleep</code> as a parameter, so the test passes a <code>FakeSleep</code> that writes down
+how long it was asked to wait instead of waiting.</p>
+
+<pre>def test_waits_retry_after_on_429_then_succeeds():
+    session = FakeSession([FakeResponse(429, headers={"Retry-After": "7"}), FakeResponse(200)])
+    sleep = FakeSleep()
+    response = request_with_retry(session, "GET", "http://x/api", sleep=sleep)
+    assert response.status_code == 200
+    assert sleep.waits == [7]</pre>
+
+<p>This is the most useful testing idea there is: <strong>pass in the things your code depends
+on</strong> (the session, the clock, the sleep) instead of reaching for them directly, and tests
+can swap in fakes. The test file also has a few <em>live</em> tests marked
+<code>@live</code> that call your real local API, and skip themselves if the server isn't
+running.</p>
+
+<h2>3. Build it</h2>
+
+<p>In Terminal, in the workspace with the venv on (<code>source ../.venv/bin/activate</code>):</p>
+
+<pre>python -m pytest lesson13</pre>
+
+<p>11 failing, 1 passing. Work through <code>lesson13/overdue_report.py</code> in this order,
+running the tests after each:</p>
+
+<ol>
+  <li><code>request_with_retry</code>: the four <code>test_*retry*</code>-ish tests
+    (<code>-k "retry or 403 or successful"</code>)</li>
+  <li><code>fetch_all</code>: <code>-k fetch_all</code></li>
+  <li><code>days_overdue</code>, <code>build_rows</code>, <code>write_report</code></li>
+  <li>Then everything, including the live tests.</li>
+</ol>
+
+<details class="quiz">
+  <summary>Help with <code>request_with_retry</code></summary>
+  <div class="answer">
+    <pre>for attempt in range(1, max_tries + 1):
+    response = session.request(method, url, params=params, json=json, timeout=10)
+    if response.status_code &lt; 400:
+        return response
+    if response.status_code in RETRY_STATUSES and attempt &lt; max_tries:
+        sleep(float(response.headers.get("Retry-After", 2 ** attempt)))
+        continue
+    raise ApiError(f"{response.status_code} from {method} {url}: {error_message(response)}")</pre>
+    <p><code>range(1, max_tries + 1)</code> counts 1, 2, 3. <code>continue</code> jumps to the
+    next loop. <code>2 ** attempt</code> is 2 to the power of attempt. <code>timeout=10</code>
+    means "give up if the server doesn't answer in 10 seconds", and every real request should
+    have one, or a hung server hangs your script forever.</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>Help with <code>fetch_all</code></summary>
+  <div class="answer">
+    <pre>items = []
+page = 1
+while True:
+    query = {**(params or {}), "limit": page_size, "page": page}
+    body = request_with_retry(session, "GET", API + path, params=query, sleep=sleep).json()
+    items.extend(body["data"])
+    if not body["has_more"]:
+        return items
+    page += 1</pre>
+    <p><code>{**a, "x": 1}</code> makes a new dict with everything from <code>a</code> plus
+    <code>x</code>. <code>params or {}</code> uses an empty dict when params is None.
+    <code>.extend</code> adds every item from one list onto another.</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary>Help with <code>build_rows</code></summary>
+  <div class="answer">
+    <pre>rows = [
+    {
+        "number": inv["number"],
+        "client": inv["client_name"],
+        "amount": f"{inv['amount_cents'] / 100:.2f}",
+        "currency": inv["currency"],
+        "due_at": inv["due_at"],
+        "days_overdue": days_overdue(inv["due_at"], today),
+    }
+    for inv in invoices
+]
+return sorted(rows, key=lambda r: r["days_overdue"], reverse=True)</pre>
+  </div>
+</details>
+
+<p>When all 12 pass, run it for real. Set the key in your terminal first. <code>export</code>
+sets an environment variable for this Terminal window:</p>
+
+<pre>export PAPERKITE_API_KEY=pk_test_harbor_reporting_7d2f
+python lesson13/overdue_report.py</pre>
+
+<p>You should see 6 overdue invoices totalling 11,822.50 USD, the oldest 269 days late, and a
+CSV in <code>out/overdue.csv</code>. Then try it as Lin
+(<code>export PAPERKITE_API_KEY=pk_test_sprout_site_8n2c</code>) and with no key
+(<code>unset PAPERKITE_API_KEY</code>). Each should end with a clear one-line message, not a
+traceback.</p>
+
+<div class="box tip">
+  <span class="tag">Stuck?</span>
+  <p>The finished version is in <code>course/solutions/lesson13/overdue_report.py</code>.</p>
+</div>
+
+<h2>4. Your turn: two tests of your own</h2>
+
+<ol>
+  <li><strong>A 429 with no Retry-After header</strong> should fall back to waiting
+    <code>2 ** attempt</code>, so 2 seconds on the first retry. Write
+    <code>test_429_without_retry_after_waits_2</code> using FakeSession and FakeSleep.</li>
+  <li><strong>An empty result</strong>: if the API returns no overdue invoices,
+    <code>build_rows([], TODAY)</code> should be <code>[]</code>. Then think about what
+    <code>main</code> prints in that case, and check the code handles it.</li>
+</ol>
+
+<details class="quiz">
+  <summary>One way to write the first</summary>
+  <div class="answer">
+    <pre>def test_429_without_retry_after_waits_2():
+    session = FakeSession([FakeResponse(429), FakeResponse(200)])
+    sleep = FakeSleep()
+    request_with_retry(session, "GET", "http://x/api", sleep=sleep)
+    assert sleep.waits == [2]</pre>
+  </div>
+</details>
+
+<h2>5. If you want more</h2>
+
+<ul>
+  <li>Add a <code>--status</code> option so the same script can report <code>sent</code> or
+    <code>void</code> invoices. (Lesson 14 covers command-line options properly.)</li>
+  <li>Group the report by client, with a total per client: who owes the most?</li>
+  <li>Use the Wall dashboard key (3 requests a minute) and <code>page_size=2</code> to watch
+    your retry logic really wait on a 429.</li>
+</ul>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>requests.get(url, headers=…, params=…, timeout=…)</code>; check <code>.status_code</code>, read <code>.json()</code>.</li>
+  <li>Secrets live in environment variables: <code>os.environ.get("PAPERKITE_API_KEY")</code> in code, <code>export</code> in Terminal.</li>
+  <li>Follow <code>has_more</code> for every page. Retry 429 and 5xx with waits; never retry other 4xx.</li>
+  <li>Define your own exception, raise it low, catch it high, and print a human sentence.</li>
+  <li>Pass dependencies in (session, sleep, today) so tests can use fakes. Live tests prove the real thing works.</li>
+</ul>
+
+</main>
+</body>
+</html>

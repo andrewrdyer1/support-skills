@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Working an Incident</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="6">
+<main>
+
+<p class="kicker">Lesson 6 · logs, stack traces, impact and the bug ticket · about 60 minutes</p>
+<h1>Working a real incident</h1>
+<p class="lede">Everything so far comes together here. Three customers say exports are broken.
+You'll reproduce it, find the exact line of code that fails, work out who else is affected,
+give customers a workaround, and write the ticket an engineer can fix in ten minutes.</p>
+
+<div class="box ticket">
+  <span class="tag">Ticket #1152 · bug · high · assigned to you</span>
+  <p class="meta">From maya@harborandpine.com · Oct 29, 2:21 PM UTC</p>
+  <p>Hi, I'm trying to export our invoices to CSV for month end and it just says "Something
+  went wrong. Please try again later." I've tried three times. It worked fine last month.
+  Our accountant needs this by Monday.</p>
+</div>
+
+<div class="box ticket">
+  <span class="tag">Slack · #support-leads</span>
+  <p>Seeing a couple of export tickets come in. Can you own this one? I need to know what's
+  happening, how many customers it affects, whether there's a workaround, and a ticket for
+  engineering. Thanks.</p>
+</div>
+
+<p>That message is a support engineer's job description in four parts. Here's the order
+you'll work through them, which is the order that works on almost any incident:</p>
+
+<ol>
+  <li><strong>Gather facts.</strong> Who, what, when, exact words.</li>
+  <li><strong>Reproduce it.</strong> See it fail yourself.</li>
+  <li><strong>Find the evidence.</strong> Logs, stack trace, code.</li>
+  <li><strong>Find when it started.</strong> What changed?</li>
+  <li><strong>Size the impact.</strong> Who else, and how bad.</li>
+  <li><strong>Find a workaround.</strong> Unblock customers while engineering fixes it.</li>
+  <li><strong>Write it up.</strong> The bug ticket, and the customer replies.</li>
+</ol>
+
+<h2>1. Gather facts</h2>
+
+<p>Maya gave you a lot already: the feature (CSV export), the exact message, three attempts,
+and "it worked last month," which is a hint that something changed. The <code>events</code>
+table records each export attempt. Get the precise times:</p>
+
+<div class="exercise" data-id="l5-hp-events"></div>
+
+<p>Three attempts on Oct 29, each one failing a fraction of a second after it started.
+Now, is it only Harbor &amp; Pine? Search the tickets:</p>
+
+<div class="sql"><textarea>select t.id, a.name, t.subject, t.status, t.created_at
+from tickets t
+join accounts a on a.id = t.account_id
+where t.subject ilike '%export%'
+   or t.subject ilike '%download%'
+order by t.created_at;</textarea></div>
+
+<p>Three customers in two days. Different words for the same thing, which is why you searched
+for both "export" and "download." Customers never use the same words you would.</p>
+
+<h2>2. Reproduce it</h2>
+
+<p>The most valuable thing you can do on any bug is make it happen yourself. Harbor &amp;
+Pine's export calls <code>GET /api/v1/invoices/export</code>. You have their reporting key
+from Lesson 5:</p>
+
+<div class="req" data-check="l5-repro" data-method="GET" data-path="/api/v1/invoices/export" data-headers="Authorization: Bearer pk_test_harbor_reporting_7d2f"></div>
+
+<p>Write down the <code>X-Request-Id</code> from that response. It's your thread into the
+logs.</p>
+
+<div class="box tip">
+  <span class="tag">In Terminal</span>
+  <p>The same reproduction as one command you could paste into a ticket:</p>
+  <pre>curl -i http://localhost:4747/api/v1/invoices/export \
+  -H 'Authorization: Bearer pk_test_harbor_reporting_7d2f'</pre>
+</div>
+
+<h2>3. Find the evidence: logs and the stack trace</h2>
+
+<p>Paste your request id into the search box. (Or search <code>export</code> and set the level
+to <code>error</code> to see every failure, including the customers'.)</p>
+
+<div class="logs" data-q="" data-level="error" data-title="Paperkite logs"></div>
+
+<p>Expand your line. Each log line is one JSON object, and each field answers a question:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Field</th><th>Answers</th></tr>
+  <tr><td><code>time</code></td><td>When, in UTC (the <code>Z</code> at the end means UTC)</td></tr>
+  <tr><td><code>level</code></td><td>How serious: <code>info</code> is normal, <code>warn</code> is a client error, <code>error</code> is the server failing</td></tr>
+  <tr><td><code>request_id</code></td><td>Which exact request; matches the <code>X-Request-Id</code> header</td></tr>
+  <tr><td><code>method</code>, <code>path</code>, <code>status</code>, <code>ms</code></td><td>What was asked, what came back, how long it took</td></tr>
+  <tr><td><code>account_id</code>, <code>user_id</code></td><td>Who</td></tr>
+  <tr><td><code>error.message</code></td><td>What went wrong, in the code's words</td></tr>
+  <tr><td><code>error.stack</code></td><td>Where in the code it went wrong</td></tr>
+</table>
+</div>
+
+<h3>Reading a stack trace</h3>
+
+<p>Here's the stack from that log line, a little tidied:</p>
+
+<pre>TypeError: Cannot read properties of null (reading 'toISOString')
+    at invoiceRow        (src/exports.mjs:23:25)
+    at exportInvoicesCsv (src/exports.mjs:41:16)
+    at exportInvoices    (src/api.mjs:198:30)
+    at async serveApi    (server.mjs:47:14)
+    …</pre>
+
+<p>(In the log it shows full paths starting <code>file:///Users/…</code>. The customers'
+failures from before today show only the first two lines.)</p>
+
+<ul>
+  <li><strong>The first line is the error itself.</strong> Read it word by word: something
+    tried to read <code>toISOString</code> from a value that was <code>null</code>. Null has no
+    properties, so the code crashed. This is the single most common error in JavaScript.</li>
+  <li><strong>Each <code>at</code> line is a function that was running</strong>, innermost
+    first. Read upward from the bottom and it's the story of the request: the server's
+    <code>serveApi</code> ran <code>exportInvoices</code>, which called
+    <code>exportInvoicesCsv</code>, which called <code>invoiceRow</code>, where it broke.
+    (<code>async</code> just marks a function that was waiting on something, here the
+    database.)</li>
+  <li><strong><code>file:line:column</code></strong> says exactly where.
+    <code>exports.mjs:23:25</code> is line 23, column 25.</li>
+</ul>
+
+<p>Read the top frame first. That's where it broke. The frames below are how the code got
+there.</p>
+
+<h3>Read the code</h3>
+
+<p>You don't need to be able to write this code. You need to read it well enough to say
+what's wrong. Line 23 is highlighted:</p>
+
+<div class="source" data-file="src/exports.mjs" data-hl="21-25"></div>
+
+<p>Lines 21 to 24 in plain English: <em>if the invoice's status is "paid" or "void", the "Paid
+on" value is the date from <code>paid_at</code>; otherwise it's blank.</em> The
+<code>? :</code> is a <strong>ternary</strong>, an if/else in one expression:
+<code>condition ? value if true : value if false</code>.</p>
+
+<p>Now read the comment at the top of the file (lines 3 to 5). The developer assumed every void
+invoice had been paid first and then refunded, so it would always have a <code>paid_at</code>.</p>
+
+<div class="find" data-check="l5-null-field"></div>
+
+<h2>4. Find when it started</h2>
+
+<p>"It worked last month" means something changed. The fastest question in any incident is
+<em>what changed, and when?</em> Find the very first failure:</p>
+
+<div class="exercise" data-id="l5-first-failure"></div>
+
+<p>Now look at what else happened that day. Products record their deploys (releases of new
+code). Search the logs for <code>deploy</code>:</p>
+
+<div class="logs" data-q="deploy" data-title="Deploys"></div>
+
+<p>And Paperkite's changelog says the same thing in human terms:</p>
+
+<div class="source" data-file="src/CHANGELOG.md" data-hl="3-7"></div>
+
+<p>The deploy went out at 15:02 UTC on Oct 28 and added the "Paid on" column. The first failure
+was 53 minutes later. No failures ever before it. That's not proof on its own (correlation
+isn't causation), but combined with a stack trace pointing at the exact code the deploy
+added, it's as close to proof as support work gets.</p>
+
+<h3>Confirm the theory with data</h3>
+
+<p>The theory: <em>an account's export crashes if it has a void invoice with no
+<code>paid_at</code>.</em> If that's right, Harbor &amp; Pine must have one.</p>
+
+<div class="exercise" data-id="l5-bad-invoice"></div>
+
+<details class="quiz">
+  <summary>Harbor &amp; Pine has two void invoices. Why doesn't the older one break the export?</summary>
+  <div class="answer"><p>INV-0021 was paid and then refunded, so it has a <code>paid_at</code>.
+  That's the case the developer imagined. INV-0046 is a duplicate that was voided before anyone
+  paid it, so <code>paid_at</code> is null. That's the case nobody thought of, and it was
+  created on Oct 27, the day before the deploy. On Oct 28 the new code met it.</p></div>
+</details>
+
+<h2>5. Size the impact</h2>
+
+<p>Your lead asked "how many customers?" There are two honest answers, and you should give
+both: who has <strong>already</strong> hit it, and who <strong>will</strong> the next time they
+export.</p>
+
+<div class="exercise" data-id="l5-affected"></div>
+<div class="exercise" data-id="l5-at-risk"></div>
+
+<p>So: 10 accounts have hit it, and 38 have the data that will trigger it. Only three of the
+ten wrote in. That's normal. Most customers who hit a bug never tell you, which is why sizing
+from data beats counting tickets.</p>
+
+<p>One more useful number: exports that still <em>work</em> since the deploy. Most do. That
+tells engineering it isn't "exports are down," it's "exports fail for a specific kind of
+data," which points straight at the cause.</p>
+
+<div class="sql"><textarea>select count(*) filter (where name = 'export_started') as attempts,
+       count(*) filter (where name = 'export_failed')  as failures
+from events
+where created_at >= '2026-10-28 15:02:11+00';</textarea></div>
+
+<details class="quiz">
+  <summary>Stretch: which accounts are at risk but haven't failed yet?</summary>
+  <div class="answer">
+    <p>A <strong>subquery</strong> is a query inside another. <code>not in (select …)</code>
+    removes everything the inner query returns:</p>
+    <pre>select distinct a.name
+from invoices i
+join accounts a on a.id = i.account_id
+where i.status = 'void'
+  and i.paid_at is null
+  and a.status &lt;&gt; 'canceled'
+  and i.account_id not in (
+    select account_id from events where name = 'export_failed'
+  );</pre>
+    <p>This is the list a CX team would use to warn customers before they hit it.</p>
+  </div>
+</details>
+
+<h2>6. Find a workaround</h2>
+
+<p>The fix needs an engineer. Maya needs her export by Monday. A workaround is a way to get
+the customer what they need <em>now</em>, without the fix.</p>
+
+<p>The export takes optional <code>from</code> and <code>to</code> dates (by issue date,
+<code>YYYY-MM-DD</code>). The bad invoice was issued on Oct 27. An export whose range doesn't
+include that day never meets it.</p>
+
+<div class="req" data-check="l5-workaround" data-method="GET" data-path="/api/v1/invoices/export" data-headers="Authorization: Bearer pk_test_harbor_reporting_7d2f"></div>
+
+<details class="quiz">
+  <summary>Is this a complete workaround for Maya? What's missing?</summary>
+  <div class="answer">
+    <p>Nearly. Two exports cover everything: <code>?to=2026-10-26</code> and
+    <code>?from=2026-10-28</code>. Only Oct 27 is left out, and that day has two invoices: the
+    voided duplicate (INV-0046) and the real one (INV-0045). So she'd be missing INV-0045 and
+    would need to add it by hand.</p>
+    <p>Say that plainly in the reply. A workaround with a known gap that you tell them about
+    is fine. One that silently drops a row from their month-end books is worse than no
+    workaround.</p>
+  </div>
+</details>
+
+<div class="box tip">
+  <span class="tag">Watching logs live in Terminal</span>
+  <p>Open a second Terminal window and run:</p>
+  <pre>tail -f ~/Developer/support-skills/logs/app.log</pre>
+  <p><code>tail -f</code> prints new lines as they're written. Send a few requests from this
+  page and watch them appear. To find things in a log file, use <code>grep</code>:</p>
+  <pre>grep '"status":500' ~/Developer/support-skills/logs/history.log | jq</pre>
+  <p>prints every failed request, formatted. On a real job the logs live in a tool like
+  Datadog, Kibana or CloudWatch, but the searching is the same idea.</p>
+</div>
+
+<h2>7. Write it up</h2>
+
+<p>A bug ticket is a handoff. The engineer who picks it up wasn't in your head for the last
+hour. A good one lets them start fixing without asking you a single question. The parts:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Part</th><th>What goes in it</th></tr>
+  <tr><td><strong>Title</strong></td><td>What fails and under what condition. Not "export broken."</td></tr>
+  <tr><td><strong>Impact</strong></td><td>Who and how many, already and at risk. Severity, and why.</td></tr>
+  <tr><td><strong>Steps to reproduce</strong></td><td>Exact steps or a curl command. Expected versus actual.</td></tr>
+  <tr><td><strong>Evidence</strong></td><td>Request ids, the error message, the top of the stack trace.</td></tr>
+  <tr><td><strong>Cause (suspected)</strong></td><td>What you think is wrong, labeled as a theory, with why.</td></tr>
+  <tr><td><strong>Started</strong></td><td>When, and what changed then.</td></tr>
+  <tr><td><strong>Workaround</strong></td><td>What customers can do now, and its gaps.</td></tr>
+  <tr><td><strong>Linked tickets</strong></td><td>The customer tickets, so they can be updated when it's fixed.</td></tr>
+</table>
+</div>
+
+<div class="writer" data-id="l5-ticket"></div>
+
+<h3>The customer reply</h3>
+
+<p>Different reader, different job. Maya doesn't need the stack trace. She needs to know
+you've found it, what to do now, and when she'll hear back.</p>
+
+<div class="box job">
+  <span class="tag">Reply to Maya</span>
+  <p><em>Hi Maya, I've found the problem, and it's on our side, not anything you did. A change
+  we made on Oct 28 breaks the export when an account has a voided invoice that was never paid.
+  Yours is INV-0046, the duplicate from Oct 27.</em></p>
+  <p><em>To get your month-end file now, export twice with a date range: once up to Oct 26, and
+  once from Oct 28 onward. Those two files have everything except Oct 27, which is just
+  INV-0045 (Westfield Realty, $1,521.99) and the voided duplicate. Our engineers have the
+  details and I'll update you here as soon as the fix is out, before Monday if I can.</em></p>
+</div>
+
+<p>Notice what it does. The answer is in the first sentence. It takes responsibility. It names
+<em>her</em> invoice so she knows you looked. The workaround is concrete and says what it
+misses. It promises a next update, not a fix date you don't control.</p>
+
+<h2>What you just did</h2>
+
+<p>Take a moment with this list, because it's exactly what support engineering interviews
+ask about:</p>
+
+<ul>
+  <li>Searched tickets two ways to find the pattern across customers (SQL, <code>ilike</code>, <code>or</code>).</li>
+  <li>Reproduced the bug with an API call and captured a request id (HTTP, headers).</li>
+  <li>Found the log line and read the stack trace down to a line of code.</li>
+  <li>Read unfamiliar code well enough to explain the bug in one sentence.</li>
+  <li>Tied the start of the failures to a specific deploy.</li>
+  <li>Sized the impact from data, already-hit and at-risk (<code>count(distinct …)</code>, joins, subqueries).</li>
+  <li>Found a workaround and stated its gap honestly.</li>
+  <li>Wrote for two audiences: the engineer and the customer.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">Interview prep</span>
+  <p>"Tell me about a time you debugged a customer issue" is in nearly every support
+  engineering interview. Tell it in the order of section headings above: what the customer
+  reported, how you reproduced it, what the logs showed, how you found when it started, the
+  impact in numbers, the workaround, and what you handed engineering. You also have real
+  stories from running your own product; tell those the same way.</p>
+</div>
+
+</main>
+
+<script>
+window.COURSE_CHECKS = {
+  "l5-repro": {
+    prompt: "<p>Send it. Do you get what Maya got?</p>",
+    check: (r) => r.status === 500 && r.path.startsWith("/api/v1/invoices/export"),
+    retry: "That didn't reproduce it. Send the request as given, with no date range.",
+    success: "Reproduced: 500, 'Something went wrong', and a request id. You can now see the bug whenever you want, which means you can also confirm the fix later.",
+  },
+  "l5-null-field": {
+    kind: "Read the code",
+    prompt: "<p>Which field is <code>null</code> when line 23 crashes? Type the field name.</p>",
+    placeholder: "field name",
+    hints: ["The error says it tried to read <code>toISOString</code> from null. On line 23, what comes right before <code>.toISOString()</code>?"],
+    solutionText: "paid_at (invoice.paid_at is null)",
+    check: (v) => (/paid_?at/i.test(v) ? true : "Look at line 23: it reads .toISOString() from something. What is that something?"),
+    success: "paid_at. A void invoice that was never paid has no paid_at, and the code assumed it always would.",
+  },
+  "l5-workaround": {
+    prompt: "<p>Get Harbor &amp; Pine's export to succeed with a <code>200</code> by adding a date range that leaves out Oct 27. Look at the CSV that comes back.</p>",
+    hints: ["Add a query string with <code>to</code> set to the day before the bad invoice.", "<code>/api/v1/invoices/export?to=2026-10-26</code>"],
+    solutionText: "/api/v1/invoices/export?to=2026-10-26\n(or ?from=2026-10-28 for the newer half)",
+    check: (r) => r.status === 200 && r.path.startsWith("/api/v1/invoices/export") && /[?&](to|from)=/.test(r.path),
+    retry: "Not a 200 yet. Your range still includes Oct 27, the day of the bad invoice.",
+    success: "200, and a real CSV with the new Paid on column. That's the workaround, and it's also more evidence for your theory.",
+  },
+  "l5-ticket": {
+    prompt: "<p>Write the bug ticket for engineering. Use the parts in the table above. Your draft saves in this browser as you type.</p>",
+    starter: "Title: \n\nImpact: \n\nSteps to reproduce: \n\nEvidence: \n\nSuspected cause: \n\nStarted: \n\nWorkaround: \n\nLinked tickets: ",
+    rubric: [
+      "The title says what fails <em>and</em> under what condition",
+      "Impact has both numbers: already affected and at risk",
+      "Steps to reproduce someone could follow exactly (a curl command counts)",
+      "At least one request id and the error message",
+      "The suspected cause names the file and line, labeled as a theory",
+      "It says when it started and links it to the Oct 28 deploy",
+      "The workaround, including what it misses",
+      "The three customer ticket numbers",
+    ],
+    solutionText: `Title: Invoice CSV export returns 500 when the account has a void invoice with no paid_at
+
+Impact: 10 accounts have hit it since Oct 28 (16 failed exports), 3 have written in. 38 active accounts have at least one unpaid void invoice and will fail on their next full export. Other exports work (44 attempts, 16 failures since the deploy). Severity: high. Month-end exports, no data loss, workaround exists.
+
+Steps to reproduce:
+curl -i http://localhost:4747/api/v1/invoices/export -H 'Authorization: Bearer pk_test_harbor_reporting_7d2f'
+Expected: 200 with CSV. Actual: 500 {"type":"api_error","message":"Something went wrong…"}
+
+Evidence: request req_xxxxxxxxxxxx (mine), plus the customers' failures in the logs since 2026-10-28 15:55 UTC.
+TypeError: Cannot read properties of null (reading 'toISOString')
+  at invoiceRow (src/exports.mjs:23:25)
+  at exportInvoicesCsv (src/exports.mjs:41:16)
+
+Suspected cause: exports.mjs lines 21-24 read invoice.paid_at.toISOString() for any status of "paid" OR "void". The comment assumes every void invoice was paid then refunded, but invoices voided before payment have paid_at = null. Harbor & Pine's INV-0046 (voided duplicate, issued Oct 27) is one.
+
+Started: first failure 2026-10-28 15:55 UTC, 53 minutes after deploy 2026.10.28.1 ("exports: add Paid on column"). No export failures before it.
+
+Workaround: export with a date range that excludes the day of the unpaid void invoice (e.g. ?to=2026-10-26 and ?from=2026-10-28 for Harbor & Pine). Gap: any real invoices issued that same day are left out and must be added by hand.
+
+Linked tickets: #1152 (Harbor & Pine Bakery), #1154 (Wren Consulting), #1155 (Pebble Cleaning)`,
+  },
+}
+</script>
+</body>
+</html>

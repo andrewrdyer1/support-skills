@@ -1,0 +1,390 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Talking to an API</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="5">
+<main>
+
+<p class="kicker">Lesson 5 · HTTP, status codes, JSON, curl and API keys · about 50 minutes</p>
+<h1>Talking to an API</h1>
+<p class="lede">The page in Lesson 4 got its invoices by asking a server. So do Zapier, accounting
+tools and every customer's own scripts. When those break, the ticket lands with you. This lesson
+teaches the language they speak.</p>
+
+<div class="box ticket">
+  <span class="tag">New ticket · integrations · high</span>
+  <p class="meta">From lin@sprouttutoring.ca</p>
+  <p>Your API keeps rejecting my key with a 403. I've copied it exactly from the settings page
+  three times. Is the API down?</p>
+</div>
+
+<p>By section 6 you'll know what a 403 means, why Lin is getting one, and how to prove it in
+one command.</p>
+
+<h2>1. A request and a response</h2>
+
+<p>An <strong>API</strong> (application programming interface) is a way for one program to
+ask another for something. On the web, they talk over <strong>HTTP</strong>, the same
+protocol your browser uses to load pages. Every conversation is one <strong>request</strong>
+and one <strong>response</strong>:</p>
+
+<pre>REQUEST  (you → server)                    RESPONSE  (server → you)
+─────────────────────────                  ──────────────────────────
+GET /api/v1/me                ← method,    HTTP/1.1 200 OK             ← status
+Host: localhost:4747            path       Content-Type: application/json
+Authorization: Bearer pk_…    ← headers    X-Request-Id: req_7q2…       ← headers
+
+(no body for a GET)           ← body       { "account": { … } }         ← body</pre>
+
+<ul>
+  <li>The <strong>method</strong> says what you want to do: <code>GET</code> to read,
+    <code>POST</code> to create, and a few others.</li>
+  <li>The <strong>path</strong> says what you're talking about: <code>/api/v1/invoices</code>.</li>
+  <li><strong>Headers</strong> are labeled extra details: who you are, what format you're sending.</li>
+  <li>The <strong>body</strong> is the content itself, usually JSON.</li>
+  <li>The <strong>status code</strong> is the server's one-number summary of how it went.</li>
+</ul>
+
+<h2>2. Anatomy of a URL</h2>
+
+<pre>http://localhost:4747/api/v1/invoices?status=overdue&amp;limit=3
+└─┬─┘  └───┬───┘ └┬─┘└───────┬──────┘ └──────────┬──────────┘
+scheme    host   port      path            query string</pre>
+
+<p>The <strong>query string</strong> starts at <code>?</code> and holds
+<code>name=value</code> pairs separated by <code>&amp;</code>. APIs use it for options like
+filters and page sizes. Your local Paperkite API lives at <code>localhost:4747</code>, which
+means "this computer, port 4747."</p>
+
+<h2>3. Your first request</h2>
+
+<p>The box below sends a real HTTP request to your local Paperkite API and shows you the
+raw response. Under the inputs it shows the same request written as a <code>curl</code>
+command, which is how you'd send it from a terminal.</p>
+
+<div class="req" data-check="l4-health" data-method="GET" data-path="/api/v1/health"></div>
+
+<p>Now do the same thing in Terminal, because in a support job that's where you'll do it.
+Open Terminal and run:</p>
+
+<pre>curl -i http://localhost:4747/api/v1/health</pre>
+
+<p><code>curl</code> sends a request and prints the response. <code>-i</code> means
+"include the response headers," which you almost always want when debugging. The flags you'll
+use most:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Flag</th><th>Means</th></tr>
+  <tr><td><code>-i</code></td><td>show the status line and headers, not just the body</td></tr>
+  <tr><td><code>-H 'Name: value'</code></td><td>add a header (repeat for more)</td></tr>
+  <tr><td><code>-X POST</code></td><td>use a method other than GET</td></tr>
+  <tr><td><code>-d '{"a": 1}'</code></td><td>send a body (and switch to POST automatically)</td></tr>
+  <tr><td><code>-s</code></td><td>silent: hide the progress meter</td></tr>
+</table>
+</div>
+
+<p>Big JSON responses are easier to read through <code>jq</code>, which is installed on your
+Mac: <code>curl -s http://localhost:4747/api/v1/health | jq</code>. The <code>|</code> sends one
+command's output into the next.</p>
+
+<h2>4. Status codes: whose problem is it?</h2>
+
+<p>The first digit of a status code tells you more than anything else in the response:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Class</th><th>Means</th><th>Support translation</th></tr>
+  <tr><td><strong>2xx</strong></td><td>Success</td><td>It worked. If the customer is still unhappy, the problem is in what they did with the answer.</td></tr>
+  <tr><td><strong>3xx</strong></td><td>Redirect, go elsewhere</td><td>Usually handled automatically. Matters when a URL has moved.</td></tr>
+  <tr><td><strong>4xx</strong></td><td>The <em>request</em> was wrong</td><td>Something about what they sent: the key, the data, the URL. Usually fixable on their side, and the response body says what.</td></tr>
+  <tr><td><strong>5xx</strong></td><td>The <em>server</em> failed</td><td>Our problem. Nothing the customer changes will fix it reliably. Collect the details and escalate.</td></tr>
+</table>
+</div>
+
+<p>The specific ones you'll meet again and again, every one of which this API can return:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Code</th><th>Name</th><th>Usually means</th></tr>
+  <tr><td>200</td><td>OK</td><td>Worked; here's your data.</td></tr>
+  <tr><td>201</td><td>Created</td><td>Worked; a new thing was created.</td></tr>
+  <tr><td>400</td><td>Bad Request</td><td>The request is malformed: broken JSON, a bad parameter.</td></tr>
+  <tr><td>401</td><td>Unauthorized</td><td>We don't know who you are: no key, wrong key, revoked key.</td></tr>
+  <tr><td>403</td><td>Forbidden</td><td>We know who you are, and you're not allowed to do this.</td></tr>
+  <tr><td>404</td><td>Not Found</td><td>That path or that record doesn't exist (for you).</td></tr>
+  <tr><td>405</td><td>Method Not Allowed</td><td>Right path, wrong method (a POST where only GET works).</td></tr>
+  <tr><td>415</td><td>Unsupported Media Type</td><td>The body isn't in the format the server expects; usually a missing <code>Content-Type</code>.</td></tr>
+  <tr><td>422</td><td>Unprocessable</td><td>Well-formed, but the values are invalid. The body lists which fields.</td></tr>
+  <tr><td>429</td><td>Too Many Requests</td><td>Rate limited. Slow down; <code>Retry-After</code> says for how long.</td></tr>
+  <tr><td>500</td><td>Internal Server Error</td><td>A bug on the server.</td></tr>
+  <tr><td>502, 503, 504</td><td>Bad Gateway, Unavailable, Timeout</td><td>Something between them and the code is down or slow. Often temporary.</td></tr>
+</table>
+</div>
+
+<div class="box job">
+  <span class="tag">On the job</span>
+  <p>The 401 versus 403 distinction comes up constantly. <strong>401: "Who are you?"</strong>
+  The key is missing, mistyped, or revoked. <strong>403: "I know who you are, and no."</strong>
+  The key is fine; it just isn't allowed to do this. Lin's ticket says 403, so her key is
+  being recognized. Copying it again won't help.</p>
+</div>
+
+<h2>5. JSON: the format of almost every API</h2>
+
+<p>API bodies are almost always <strong>JSON</strong> (JavaScript Object Notation), a text
+format for structured data:</p>
+
+<pre>{
+  "account": {                        ← an object: named values in { }
+    "id": 1,                          ← a number
+    "name": "Harbor &amp; Pine Bakery",   ← a string, always "double quotes"
+    "plan": "pro"
+  },
+  "api_key": {
+    "scopes": ["invoices:read"],      ← an array: a list in [ ]
+    "revoked": false                  ← true / false
+  },
+  "paid_at": null                     ← null, the same idea as in SQL
+}</pre>
+
+<p>Objects nest inside objects, and arrays hold lists of anything. When people describe a value
+inside, they write a path: <code>account.name</code> is "Harbor &amp; Pine Bakery";
+<code>api_key.scopes[0]</code> is the first item in the scopes list.</p>
+
+<p>JSON is strict. The three mistakes behind most "invalid JSON" errors: single quotes
+instead of double (<code>'pro'</code>), a comma after the last item (<code>[1, 2,]</code>), and
+names without quotes (<code>{plan: "pro"}</code>).</p>
+
+<h2>6. Authentication: API keys</h2>
+
+<p>Paperkite knows who's calling from an API key, sent in the <code>Authorization</code>
+header as <code>Bearer</code> followed by the key. Harbor &amp; Pine has four keys. You can see
+them with SQL:</p>
+
+<div class="sql"><textarea>select label, key, scopes, rate_limit_per_min, revoked_at
+from api_keys
+where account_id = 1;</textarea></div>
+
+<div class="box careful">
+  <span class="tag">Real keys are secrets</span>
+  <p>These are practice keys on your own machine. Real API keys are passwords: anyone who has
+  one can act as that customer. Never ask a customer to paste a key into a ticket or chat, and
+  if they do, tell them to revoke it and make a new one. Production databases usually store
+  only a hashed version, so support staff can't see full keys at all. You'll notice
+  Paperkite's logs record a key's <em>label</em>, never the key itself.</p>
+</div>
+
+<div class="req" data-check="l4-me" data-method="GET" data-path="/api/v1/me" data-headers="Authorization: Bearer "></div>
+
+<div class="req" data-check="l4-401" data-method="GET" data-path="/api/v1/me" data-headers="Authorization: Bearer pk_test_harbor_reporting_7d2f"></div>
+
+<h3>Back to Lin</h3>
+
+<p>Lin's key is <code>pk_test_sprout_site_8n2c</code>. Send exactly what she's sending:</p>
+
+<div class="req" data-check="l4-lin" data-method="GET" data-path="/api/v1/invoices" data-headers="Authorization: Bearer pk_test_sprout_site_8n2c"></div>
+
+<details class="quiz">
+  <summary>Confirm it with SQL: what plan is Sprout Tutoring on, and does it include API access?</summary>
+  <div class="answer">
+    <p>Join <code>accounts</code> to <code>plans</code>:</p>
+    <pre>select a.name, a.plan_id, p.api_access
+from accounts a
+join plans p on p.id = a.plan_id
+where a.name = 'Sprout Tutoring';</pre>
+    <p>Starter, and <code>api_access</code> is false. The API is up; Lin's plan doesn't include
+    it. The reply leads with that: <em>"Hi Lin, the API is working, and your key is correct.
+    The 403 is because API access is part of the Pro plan, and Sprout Tutoring is on Starter.
+    If you upgrade under Settings → Billing, the same key will start working right away."</em></p>
+  </div>
+</details>
+
+<p>A key can also be valid but limited to certain actions, called <strong>scopes</strong>.
+Harbor &amp; Pine's reporting key only has <code>invoices:read</code>. Try creating an invoice
+with it (switch the method to POST) and you'll get a different 403, with a message naming the
+missing scope.</p>
+
+<h2>7. Query strings and pages</h2>
+
+<p><code>GET /api/v1/invoices</code> lists invoices. It accepts three query parameters:
+<code>status</code> (draft, sent, overdue, paid, void), <code>limit</code> (1 to 100, default
+10) and <code>page</code>. Lists come back one <strong>page</strong> at a time, with
+<code>has_more</code> telling you whether there's another.</p>
+
+<div class="req" data-check="l4-overdue" data-method="GET" data-path="/api/v1/invoices" data-headers="Authorization: Bearer pk_test_harbor_reporting_7d2f"></div>
+
+<div class="req" data-check="l4-page2" data-method="GET" data-path="/api/v1/invoices?status=overdue&limit=3" data-headers="Authorization: Bearer pk_test_harbor_reporting_7d2f"></div>
+
+<div class="box job">
+  <span class="tag">On the job</span>
+  <p>"Your API is missing invoices" is very often a customer who only read the first page.
+  Their script got 10, saw <code>has_more: true</code>, and stopped. Ask what parameters
+  they're sending before you look for a bug.</p>
+</div>
+
+<h2>8. Sending data: POST, Content-Type, and validation</h2>
+
+<p>To create something, you <code>POST</code> a JSON body. Two headers matter: the
+<code>Authorization</code> header, as always, and <code>Content-Type: application/json</code>,
+which tells the server how to read the body. Forget the second one and you'll get a
+<strong>415</strong>. (curl's <code>-d</code> labels the body as form data unless you say
+otherwise, so this is one of the most common curl mistakes.)</p>
+
+<p>Creating an invoice needs a <code>client_id</code> that belongs to the account. Find one
+with SQL:</p>
+
+<div class="sql"><textarea>select id, name
+from clients
+where account_id = 1;</textarea></div>
+
+<div class="box ticket">
+  <span class="tag">New ticket · integrations · normal</span>
+  <p class="meta">From maya@harborandpine.com</p>
+  <p>Our bookkeeping sync stopped creating invoices yesterday. Our contractor says Paperkite
+  "returns 422." Here's what it sends:</p>
+  <pre>{"client_id": 5, "amount_cents": "1250.00"}</pre>
+</div>
+
+<div class="req" data-check="l4-create" data-method="POST" data-path="/api/v1/invoices" data-headers="Authorization: Bearer pk_test_harbor_bookkeeping_4k9m\nContent-Type: application/json" data-body='{"client_id": 5, "amount_cents": "1250.00"}'></div>
+
+<p>(Paperkite's API runs in test mode here: it checks your invoice and sends it back, but
+doesn't save it, so the lesson data never changes.)</p>
+
+<details class="quiz">
+  <summary>What would you tell Maya's contractor?</summary>
+  <div class="answer">
+    <p>Quote the API's own words: <code>amount_cents</code> must be a whole number of cents
+    (<code>1250</code>, not the string <code>"1250.00"</code>), and <code>due_at</code> is required,
+    written <code>YYYY-MM-DD</code>. A 422 with a <code>fields</code> list is the API telling
+    you exactly what to fix, so the fastest support reply forwards that list.</p>
+  </div>
+</details>
+
+<h2>9. Rate limits</h2>
+
+<p>APIs limit how many requests a key can make per minute, so one runaway script can't slow
+things down for everyone. Over the limit, you get <strong>429 Too Many Requests</strong> and
+a <code>Retry-After</code> header with the number of seconds to wait. Harbor &amp; Pine's
+"Wall dashboard" key allows only 3 requests a minute.</p>
+
+<div class="req" data-check="l4-429" data-method="GET" data-path="/api/v1/me" data-headers="Authorization: Bearer pk_test_harbor_dashboard_3x5v"></div>
+
+<p>The right fix for a customer hitting 429s is almost never "raise my limit." It's
+"wait <code>Retry-After</code> seconds before retrying," and "don't poll every second for data
+that changes once an hour."</p>
+
+<h2>10. Request IDs: the thread back to the logs</h2>
+
+<p>Every response from Paperkite carries an <code>X-Request-Id</code> header. The same id is
+written into the server's log line for that request. Asking a customer for the request id
+(or the exact time and endpoint) turns "it failed sometime yesterday" into one exact line in
+the logs. Many APIs (Stripe, GitHub, Twilio) work the same way.</p>
+
+<p>You've made a few dozen requests now. Here's what Paperkite logged for them, newest at
+the bottom:</p>
+
+<div class="logs" data-q="" data-source="live" data-title="Your requests in the Paperkite log"></div>
+
+<p>Find one of your 403s and expand it. You'll see the status, the path, which key label
+made it, and how long it took. You'll spend a lot of time in this view in Lesson 6.</p>
+
+<div class="box tip">
+  <span class="tag">Webhooks: an API in reverse</span>
+  <p>Sometimes the product calls the <em>customer's</em> server instead: "invoice paid" gets
+  sent to a URL the customer chose. That's a <strong>webhook</strong>. The same ideas apply in
+  reverse: if their server answers with a 4xx or 5xx, or takes too long, the delivery fails and
+  is usually retried. "Webhook not firing" tickets are mostly the customer's endpoint
+  returning errors, which the product's delivery log will show.</p>
+</div>
+
+<h2>Recap</h2>
+
+<ul>
+  <li>A request is a method, a URL, headers and maybe a body. A response is a status code, headers and a body.</li>
+  <li>2xx worked, 4xx means the request was wrong (read the body for why), 5xx means the server failed.</li>
+  <li>401 is "who are you?"; 403 is "I know you, and no."</li>
+  <li>JSON uses double quotes, no trailing commas, and has objects <code>{}</code>, arrays <code>[]</code>, strings, numbers, true/false and null.</li>
+  <li>POSTing JSON needs <code>Content-Type: application/json</code>. 422 lists the fields to fix.</li>
+  <li>Lists come in pages; check <code>has_more</code>. 429 means wait <code>Retry-After</code> seconds.</li>
+  <li><code>curl -i</code> reproduces anything. A request id ties a response to its log line.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">Interview prep</span>
+  <p>"A customer gets a 401 from our API. Walk me through it." Ask how they send the key (the
+  exact header, without the key itself); check it isn't revoked or from a different
+  environment (test versus live keys); reproduce with <code>curl -i</code> using a key you
+  control; check the logs by time or request id. Then explain the difference between 401 and
+  403 without being asked. That's the answer they want.</p>
+</div>
+
+</main>
+
+<script>
+const KEY_RE = /pk_test_\w+/
+window.COURSE_CHECKS = {
+  "l4-health": {
+    prompt: "<p>Press <strong>Send</strong>. Look at the status line and the body that come back.</p>",
+    check: (r) => r.status === 200 && r.path.endsWith("/api/v1/health"),
+    success: "200 OK, with a small JSON body. Your first API call. The status line comes first because it's the first thing to read.",
+  },
+  "l4-me": {
+    prompt: "<p>Call <code>GET /api/v1/me</code> with Harbor &amp; Pine's <strong>Reporting script</strong> key. Paste the key after <code>Bearer </code> in the headers box.</p>",
+    hints: ["The key is <code>pk_test_harbor_reporting_7d2f</code>, from the SQL result above.", "The header line should read exactly: <code>Authorization: Bearer pk_test_harbor_reporting_7d2f</code>"],
+    solutionText: "Authorization: Bearer pk_test_harbor_reporting_7d2f",
+    check: (r) => r.status === 200 && r.json && r.json.account && r.json.account.name === "Harbor & Pine Bakery",
+    retry: "Not a 200 yet. Read the error message in the body: it says what's missing.",
+    success: "200. The response says which account and key you are, the first thing to check when a customer's integration acts strangely.",
+  },
+  "l4-401": {
+    prompt: "<p>Get a <strong>401</strong> on purpose, two ways. First delete the whole header line and send. Then put it back with one character of the key changed. Read both messages. (Either one passes.)</p>",
+    hints: ["Remove the Authorization line entirely and press Send."],
+    check: (r) => r.status === 401,
+    retry: "Not a 401. Remove the header, or change a character in the key.",
+    success: "401: Paperkite couldn't identify you. Notice the messages differ: 'Missing API key' versus 'Invalid API key'. Good APIs tell you which.",
+  },
+  "l4-lin": {
+    prompt: "<p>Send Lin's request as she sends it. What's the status, and what does the error message say? This is the answer to her ticket.</p>",
+    check: (r) => r.status === 403 && (r.sent.Authorization || "").includes("sprout"),
+    retry: "Send it with Lin's key, unchanged.",
+    success: "403, and the message says why: the starter plan doesn't include API access. Her key works; her plan doesn't allow it.",
+  },
+  "l4-overdue": {
+    prompt: "<p>List Harbor &amp; Pine's <strong>overdue</strong> invoices, <strong>3 per page</strong>. Change the path to add a query string.</p>",
+    hints: ["Query strings start with <code>?</code> and pairs are joined with <code>&amp;</code>.", "<code>/api/v1/invoices?status=overdue&amp;limit=3</code>"],
+    solutionText: "/api/v1/invoices?status=overdue&limit=3",
+    check: (r) => r.status === 200 && r.json && r.json.data && r.json.data.length === 3 && r.json.data.every((i) => i.status === "overdue"),
+    retry: "Not quite: you need a 200 with exactly 3 invoices, all overdue.",
+    success: "Three overdue invoices, and has_more is true, so there are more on the next page.",
+  },
+  "l4-page2": {
+    prompt: "<p>Now get the <strong>second page</strong> of that list. Is there a third?</p>",
+    hints: ["Add <code>&amp;page=2</code> to the end of the path."],
+    solutionText: "/api/v1/invoices?status=overdue&limit=3&page=2",
+    check: (r) => r.status === 200 && r.json && r.json.page === 2 && r.json.data && r.json.data.every((i) => i.status === "overdue"),
+    success: "Page 2, and has_more is now false: Harbor & Pine has 6 overdue invoices in all.",
+  },
+  "l4-create": {
+    prompt: "<p>Send the contractor's request as it is and read the 422. Then fix the body until you get a <strong>201 Created</strong>. Use the error's own field messages as your guide.</p>",
+    hints: ["The <code>fields</code> object in the 422 names each problem.", "<code>amount_cents</code> must be a number with no quotes: <code>1250</code>. And add <code>\"due_at\": \"2026-11-30\"</code>.", "Body: <code>{\"client_id\": 5, \"amount_cents\": 1250, \"due_at\": \"2026-11-30\"}</code>. (Curious what a 415 looks like? Delete the Content-Type line and send.)"],
+    solutionText: 'Headers:\nAuthorization: Bearer pk_test_harbor_bookkeeping_4k9m\nContent-Type: application/json\n\nBody:\n{"client_id": 5, "amount_cents": 1250, "due_at": "2026-11-30"}',
+    check: (r) => r.status === 201,
+    retry: "Not a 201 yet. Read the status and body: 415 means a header is missing, 422 lists the fields to fix.",
+    success: "201 Created. Notice what it took: the right header, and values in the types the API asked for.",
+  },
+  "l4-429": {
+    prompt: "<p>Press Send four times quickly with the Wall dashboard key. What happens on the fourth, and what does <code>Retry-After</code> say?</p>",
+    check: (r) => r.status === 429,
+    retry: "Not rate limited yet. Keep sending: the limit is 3 a minute.",
+    success: "429, with Retry-After telling you how many seconds until the oldest of your 3 requests ages out of the one-minute window.",
+  },
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,17 @@
+{
+  "name": "support-skills",
+  "version": "1.0.0",
+  "description": "Support engineering skills, hands-on: SQL, HTML/CSS, HTTP and APIs, debugging",
+  "scripts": {
+    "start": "node scripts/start.mjs",
+    "stop": "node scripts/db.mjs stop",
+    "reset": "node scripts/db.mjs reset"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "pg": "^8.23.1"
+  },
+  "type": "module",
+  "private": true
+}

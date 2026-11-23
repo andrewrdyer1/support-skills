@@ -1,0 +1,400 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Finding a Customer</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="1">
+<main>
+
+<p class="kicker">Lesson 1 · SQL basics · about 45 minutes</p>
+<h1>Finding a customer</h1>
+<p class="lede">Your first day as a support engineer at Paperkite, an invoicing app for small
+businesses. A ticket is waiting. You'll answer it by asking the database, not by guessing.</p>
+
+<div class="box ticket">
+  <span class="tag">Ticket #1151 · account access · open</span>
+  <p class="meta">From maya@harborandpine.com · Oct 30, 1:12 PM</p>
+  <p>Hi, we added our new bookkeeper Sam to the team ten days ago and he says he never got
+  an invite email. He's checked spam. Can you look into it? He needs to get into the
+  invoices before month end.</p>
+</div>
+
+<p>A support agent would reply "please try resending the invite." A support engineer finds
+out what actually happened. By the end of this lesson you'll know, and you'll have learned
+the SQL that most support jobs use every day.</p>
+
+<div class="box tip">
+  <span class="tag">How this course works</span>
+  <p>Every grey box with a <strong>Run</strong> button is a real query against a real
+  Postgres database running on your Mac. Edit anything and run it again. You can't break
+  it: your access is read-only, and a query that runs longer than 5 seconds is stopped.</p>
+  <p>Exercises have a <strong>Check</strong> button that compares your result with the
+  answer. There's usually more than one correct way to write it.</p>
+</div>
+
+<h2>1. A database is a set of strict spreadsheets</h2>
+
+<p>A database is a collection of <strong>tables</strong>. A table is like a spreadsheet
+tab, with one big difference: every column has a fixed name and a fixed type. A
+<code>created_at</code> column holds timestamps and nothing else. An <code>id</code> column
+holds whole numbers. You can't type "TBD" into either.</p>
+
+<p>Each <strong>row</strong> is one thing: one account, one user, one invoice. Paperkite's
+database has eight tables:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Table</th><th>One row is…</th><th>Columns you'll use most</th></tr>
+  <tr><td><code>accounts</code></td><td>a business paying for Paperkite</td><td><code>id, name, plan_id, status, country, created_at</code></td></tr>
+  <tr><td><code>users</code></td><td>a person who can log in to an account</td><td><code>id, account_id, email, full_name, role, last_login_at</code></td></tr>
+  <tr><td><code>plans</code></td><td>a price plan</td><td><code>id, name, monthly_price_cents, api_access</code></td></tr>
+  <tr><td><code>clients</code></td><td>a business the customer sends invoices <em>to</em></td><td><code>id, account_id, name</code></td></tr>
+  <tr><td><code>invoices</code></td><td>one invoice</td><td><code>id, account_id, number, status, amount_cents, issued_at, paid_at</code></td></tr>
+  <tr><td><code>tickets</code></td><td>a support ticket</td><td><code>id, account_id, requester_id, subject, category, priority, status, created_at</code></td></tr>
+  <tr><td><code>api_keys</code></td><td>a key a customer uses to call the API</td><td><code>id, account_id, label, scopes, revoked_at</code></td></tr>
+  <tr><td><code>events</code></td><td>something a user did, like logging in</td><td><code>id, account_id, user_id, name, created_at</code></td></tr>
+</table>
+</div>
+
+<p>Notice how many tables have an <code>account_id</code> column. That's how the tables
+connect: a user row with <code>account_id = 1</code> belongs to the account whose
+<code>id</code> is 1. An <code>id</code> that identifies a row is its <strong>primary
+key</strong>. A column that points at another table's id, like <code>account_id</code>, is
+a <strong>foreign key</strong>. Keep that in mind; it's the whole idea behind section 7.</p>
+
+<h2>2. SELECT: show me some rows</h2>
+
+<p>Every query in this lesson starts with <code>SELECT</code>. Run this one:</p>
+
+<div class="sql"><textarea>select *
+from accounts
+limit 5;</textarea></div>
+
+<p>Read it as a sentence: <em>show every column (<code>*</code>) from the accounts table, but
+only 5 rows.</em></p>
+
+<ul>
+  <li><code>select</code> says which columns. <code>*</code> means all of them.</li>
+  <li><code>from</code> says which table.</li>
+  <li><code>limit</code> caps how many rows come back. Get in the habit: on a real production
+    database a table can have millions of rows, and an unlimited query is slow for you and
+    for everyone else using it.</li>
+  <li>Keywords aren't case-sensitive. <code>SELECT</code>, <code>select</code> and
+    <code>Select</code> all work. Many people capitalize keywords to make them stand out;
+    this course uses lowercase. Pick one and be consistent.</li>
+  <li>The semicolon ends the statement. Most tools don't need it for a single query, but
+    it's a good habit.</li>
+</ul>
+
+<p>Usually you want specific columns, not all of them. List them, separated by commas:</p>
+
+<div class="sql"><textarea>select name, plan_id, status
+from accounts
+limit 10;</textarea></div>
+
+<div class="exercise" data-id="l1-columns"></div>
+
+<h2>3. WHERE: only the rows I care about</h2>
+
+<p><code>where</code> filters rows. It comes after <code>from</code>:</p>
+
+<div class="sql"><textarea>select id, name, plan_id
+from accounts
+where status = 'past_due';</textarea></div>
+
+<p>Three things trip up everyone at first:</p>
+
+<ul>
+  <li><strong>Text goes in single quotes:</strong> <code>'past_due'</code>. Double quotes mean
+    something else in SQL (a column name), so <code>"past_due"</code> gives you an error
+    about a column that doesn't exist.</li>
+  <li><strong>Numbers don't:</strong> <code>where id = 1</code>.</li>
+  <li><strong>Text matching is exact.</strong> <code>'Past_Due'</code> matches nothing.
+    Section 4 shows how to match loosely.</li>
+</ul>
+
+<p>The comparison operators are what you'd expect:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Operator</th><th>Means</th><th>Example</th></tr>
+  <tr><td><code>=</code></td><td>equals</td><td><code>plan_id = 'pro'</code></td></tr>
+  <tr><td><code>&lt;&gt;</code> or <code>!=</code></td><td>does not equal</td><td><code>status &lt;&gt; 'canceled'</code></td></tr>
+  <tr><td><code>&lt; &gt; &lt;= &gt;=</code></td><td>less / greater than</td><td><code>amount_cents &gt;= 100000</code></td></tr>
+  <tr><td><code>in (…)</code></td><td>is any of these</td><td><code>country in ('CA', 'GB')</code></td></tr>
+  <tr><td><code>between a and b</code></td><td>from a to b, including both ends</td><td><code>created_at between '2026-10-01' and '2026-10-31'</code></td></tr>
+</table>
+</div>
+
+<p>Combine conditions with <code>and</code> (both must be true) and <code>or</code> (either
+one). When you mix them, use parentheses, because <code>and</code> binds tighter than
+<code>or</code>, the same way multiplication binds tighter than addition:</p>
+
+<div class="sql"><textarea>-- Lines starting with two dashes are comments. Postgres ignores them.
+-- Pro or Business accounts that are past due:
+select name, plan_id, status
+from accounts
+where (plan_id = 'pro' or plan_id = 'business')
+  and status = 'past_due';</textarea></div>
+
+<p>Delete the parentheses and run it again. You'll get more rows, because Postgres now reads
+it as "pro, <em>or</em> (business and past due)", which includes every pro account no matter
+its status. This is one of the most common SQL mistakes there is, and it doesn't error. It
+just quietly gives you the wrong answer.</p>
+
+<div class="exercise" data-id="l1-past-due"></div>
+<div class="exercise" data-id="l1-in"></div>
+
+<h2>4. Finding text when you don't know exactly how it's stored</h2>
+
+<p>Back to the ticket. Maya's email is <code>maya@harborandpine.com</code>. Let's find
+everyone on her team. You might try this:</p>
+
+<div class="sql"><textarea>select id, account_id, email, full_name
+from users
+where email = 'maya@harborandpine.com';</textarea></div>
+
+<p>That finds Maya. But it only finds an exact match, and we want her whole team. For that,
+use <code>like</code> with <code>%</code>, which means "any characters, or none":</p>
+
+<div class="sql"><textarea>select id, account_id, email, full_name
+from users
+where email like '%@harborandpine.com';</textarea></div>
+
+<p>Two people. But is that really everyone? Real data is messy. People type their email
+with capital letters, and some systems store it exactly as typed. <code>like</code> is
+case-sensitive. <code>ilike</code> (a Postgres extra) is not. And searching for a shorter
+piece casts a wider net:</p>
+
+<div class="sql"><textarea>select id, account_id, email, full_name
+from users
+where email ilike '%harborandpine%';</textarea></div>
+
+<p>Four people now. Look closely at the two you missed before. One has capital letters. The
+other is the reason for the ticket. You may already see it.</p>
+
+<div class="box job">
+  <span class="tag">On the job</span>
+  <p><strong>Search wide, then narrow.</strong> When you're looking up a customer, start
+  with the loosest match that makes sense (<code>ilike '%harborandpine%'</code>), see what
+  comes back, then tighten. Starting exact is how support people end up telling a customer
+  "you don't have an account" when they do.</p>
+</div>
+
+<div class="exercise" data-id="l1-ilike"></div>
+
+<h2>5. NULL: the value that means "nothing here"</h2>
+
+<p>Look at <code>last_login_at</code> for Harbor &amp; Pine's team:</p>
+
+<div class="sql"><textarea>select email, role, created_at, last_login_at
+from users
+where account_id = 1;</textarea></div>
+
+<p>One row says <code>null</code> in <code>last_login_at</code>. <code>null</code> isn't zero
+and it isn't an empty string. It means <em>there is no value</em>. Here: this person has
+never logged in.</p>
+
+<p>Now the trap. This looks like it should find people who never logged in. Run it:</p>
+
+<div class="sql"><textarea>select email, last_login_at
+from users
+where last_login_at = null;</textarea></div>
+
+<p>Zero rows, and no error. In SQL, <code>null</code> means "unknown," and comparing anything
+to an unknown gives unknown, which <code>where</code> treats as "no." Even <code>null = null</code>
+isn't true. You have to ask specifically:</p>
+
+<div class="sql"><textarea>select email, last_login_at
+from users
+where last_login_at is null
+limit 20;</textarea></div>
+
+<p><code>is null</code> and <code>is not null</code> are the only reliable ways to test for
+it. Write them often: null columns are everywhere in support work. "Never logged in," "no
+reply yet," "not paid," "not canceled" are all nulls.</p>
+
+<div class="exercise" data-id="l1-null"></div>
+
+<details class="quiz">
+  <summary>A ticket has <code>first_response_at</code> = null. What does that mean?</summary>
+  <div class="answer"><p>Nobody has replied to it yet. That's a very common support query:
+  <code>where first_response_at is null and status = 'open'</code> is "tickets still waiting
+  for a first reply."</p></div>
+</details>
+
+<h2>6. ORDER BY: put them in order</h2>
+
+<p>Rows come back in no particular order unless you ask for one. Postgres is free to return
+them however is fastest, and that can change from one run to the next. If order matters,
+say so:</p>
+
+<div class="sql"><textarea>select name, plan_id, created_at
+from accounts
+order by created_at desc
+limit 5;</textarea></div>
+
+<p><code>desc</code> means descending: newest first, biggest first, Z to A.
+<code>asc</code> (ascending) is the default. You can sort by more than one column:
+<code>order by plan_id, name</code> sorts by plan, then alphabetically within each plan.</p>
+
+<p>Order of the clauses matters, and it's always this:</p>
+
+<pre>select … from … where … order by … limit …</pre>
+
+<div class="exercise" data-id="l1-order"></div>
+
+<h2>7. JOIN: putting tables together</h2>
+
+<p>The <code>users</code> table only has <code>account_id</code>. To see the account's
+<em>name</em> or <em>plan</em> next to each user, you join the two tables on the column they
+share:</p>
+
+<div class="sql"><textarea>select users.email, users.role, accounts.name, accounts.plan_id
+from users
+join accounts on accounts.id = users.account_id
+where users.email ilike '%harborandpine%';</textarea></div>
+
+<p>The <code>on</code> part is the rule for pairing rows: <em>a user goes with the account
+whose id equals the user's account_id.</em> Because both tables have columns with the same
+names (both have <code>id</code> and <code>created_at</code>), you write
+<code>table.column</code> to say which one you mean.</p>
+
+<p>Typing table names gets old, so people give them short <strong>aliases</strong>. This is
+the same query:</p>
+
+<div class="sql"><textarea>select u.email, u.role, a.name, a.plan_id
+from users u
+join accounts a on a.id = u.account_id
+where u.email ilike '%harborandpine%';</textarea></div>
+
+<p>You'll see this style in nearly every real query.</p>
+
+<div class="exercise" data-id="l1-join"></div>
+
+<h3>LEFT JOIN: keep rows even when there's no match</h3>
+
+<p>A plain <code>join</code> only keeps rows that found a partner. An account with no API
+keys disappears from <code>accounts join api_keys</code> entirely, because there's nothing to
+pair it with. Often that's what you want. Sometimes the missing ones are the whole point:
+"which customers <em>haven't</em> set up X?"</p>
+
+<p><code>left join</code> keeps every row from the left-hand table (the one after
+<code>from</code>) and fills the right-hand columns with <code>null</code> when there's no
+match:</p>
+
+<div class="sql"><textarea>select a.name, a.plan_id, k.label
+from accounts a
+left join api_keys k on k.account_id = a.id
+where a.plan_id = 'business'
+order by a.name
+limit 15;</textarea></div>
+
+<p>The rows where <code>label</code> is null are business accounts with no API key at all.
+To get <em>only</em> those, combine it with section 5: add
+<code>and k.id is null</code>.</p>
+
+<div class="exercise" data-id="l1-left-join"></div>
+
+<h2>8. Back to the ticket</h2>
+
+<p>You've seen everything you need. Look at Sam's row one more time:</p>
+
+<div class="sql"><textarea>select email, full_name, role, created_at, last_login_at
+from users
+where account_id = 1
+order by created_at;</textarea></div>
+
+<details class="quiz">
+  <summary>What happened to Sam's invite?</summary>
+  <div class="answer">
+    <p>Sam's user was created on Oct 20, exactly when Maya said, so the invite did go out. But
+    it went to <code>sam@harborandpine<strong>.co</strong></code>, missing the "m". Everyone
+    else on the team is at <code>.com</code>. The invite was sent to an address nobody reads,
+    which is why Sam never saw it, and why <code>last_login_at</code> is still null.</p>
+    <p>Notice that the exact search in section 4 (<code>like '%@harborandpine.com'</code>)
+    missed him completely. If you'd stopped there, you'd have told Maya that Sam wasn't on the
+    account at all.</p>
+  </div>
+</details>
+
+<p>Before you reply, check whether Harbor &amp; Pine has anything else open. Customers
+appreciate it when you notice:</p>
+
+<div class="exercise" data-id="l1-open-tickets"></div>
+
+<p>There's a second open ticket, about the CSV export. Hold that thought: it's the whole of
+Lesson 6.</p>
+
+<div class="box job">
+  <span class="tag">The reply</span>
+  <p>A good support reply leads with the answer, gives one clear fix, and quotes their own
+  details back so they can see you looked:</p>
+  <p><em>Hi Maya, I found it. Sam's invite went to sam@harborandpine<strong>.co</strong>
+  (no "m" at the end), so it never reached him. If you remove that user under Settings →
+  Team and invite sam@harborandpine.com, the new invite should arrive within a minute. I'll
+  keep this ticket open until he's in. I also see your note about the CSV export. I'm looking
+  into that one separately and will update you there.</em></p>
+</div>
+
+<div class="box careful">
+  <span class="tag">Why you didn't just fix it</span>
+  <p>You could only read. In a real job you'll sometimes have write access, and the rule is:
+  <strong>never change customer data with a hand-typed query if there's a tool or an admin
+  page that does it.</strong> The tool checks things your query won't (sending the new
+  invite, writing an audit log). The most famous mistake in SQL is an
+  <code>update users set email = '…'</code> without a <code>where</code>, which changes
+  every user's email at once. Lesson 3 is about doing it safely when you have to.</p>
+</div>
+
+<h2>9. Doing this in a real terminal</h2>
+
+<p>Many support teams query a read-only copy of production with <code>psql</code>, the
+command-line tool that comes with Postgres. The same database you've been using is waiting
+there. In Terminal:</p>
+
+<pre>psql "postgresql://learner@localhost:5488/paperkite"</pre>
+
+<p>Then type a query and end it with a semicolon. A few commands that start with a
+backslash belong to psql itself, not SQL:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Command</th><th>What it does</th></tr>
+  <tr><td><code>\dt</code></td><td>list the tables</td></tr>
+  <tr><td><code>\d users</code></td><td>describe a table: its columns and their types</td></tr>
+  <tr><td><code>\x</code></td><td>toggle "expanded" display, one column per line; good for wide rows</td></tr>
+  <tr><td><code>\q</code></td><td>quit</td></tr>
+</table>
+</div>
+
+<p>Try <code>\d invoices</code>. Knowing a table's exact column names and types before you
+write a query saves a lot of guessing.</p>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>select columns from table where conditions order by column limit n</code>, in that order.</li>
+  <li>Text in single quotes. Use <code>ilike '%piece%'</code> to search loosely.</li>
+  <li><code>and</code> binds tighter than <code>or</code>; use parentheses.</li>
+  <li><code>null</code> means no value. Test it with <code>is null</code>, never <code>= null</code>.</li>
+  <li><code>join … on</code> pairs rows across tables; <code>left join</code> keeps the rows with no partner, so you can find what's missing.</li>
+  <li>Search wide, then narrow. Read the data before you answer the customer.</li>
+</ul>
+
+<div class="box tip">
+  <span class="tag">Interview prep</span>
+  <p>Support engineering interviews often include a short live SQL exercise. The questions
+  look a lot like this lesson: "find the customers who…", "which accounts have no…", "why
+  does this query return nothing?" (the answer is very often <code>= null</code>, or a
+  missing parenthesis around an <code>or</code>). Talk out loud as you go. Saying "I'll
+  start loose and narrow down" is exactly what they want to hear.</p>
+</div>
+
+</main>
+</body>
+</html>

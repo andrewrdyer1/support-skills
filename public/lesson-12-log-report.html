@@ -1,0 +1,241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log Triage Report</title>
+<link rel="stylesheet" href="course.css">
+<script src="course.js" defer></script>
+</head>
+<body data-lesson="12">
+<main>
+
+<p class="kicker">Lesson 12 · script case · about 60 minutes</p>
+<h1>Script: a log triage report</h1>
+<p class="lede">In Lesson 6 you searched logs by hand. Now you'll write the script that does the
+first pass for you: what's failing, where, and for whom. Along the way you'll set up a real
+project workflow: an editor, a terminal, and tests that tell you when you're done.</p>
+
+<div class="box ticket">
+  <span class="tag">Slack · #support-leads</span>
+  <p>Every Monday someone eyeballs the API logs for anything weird and it takes half an hour.
+  Could we get a script that prints the failures by endpoint and which accounts are hitting
+  500s, and saves a CSV we can paste into the weekly doc?</p>
+</div>
+
+<h2>1. Warm up: files, JSON lines and CSV</h2>
+
+<p>Three short exercises with the tools the script needs. They run in
+<code>workspace/</code>, so <code>data/history.log</code> is the same log file you searched in
+Lesson 6.</p>
+
+<p><strong>Reading a file.</strong> <code>with open(path) as f:</code> opens a file and closes
+it automatically when the indented block ends. Looping over <code>f</code> gives you one line at
+a time, which works even for a log file bigger than your computer's memory.</p>
+
+<div class="exercise" data-id="p7-count-500s"></div>
+
+<p><strong>JSON lines.</strong> Each log line is its own JSON object, so
+<code>json.loads(line)</code> turns each into a dict. A <code>Counter</code> is a dict that
+starts every count at zero, which saves you the <code>.get(x, 0)</code> dance.</p>
+
+<div class="exercise" data-id="p7-status-counts"></div>
+
+<p><strong>CSV.</strong> <code>csv.DictReader</code> reads a CSV file and gives you each row as
+a dict keyed by the header row. Every value is text, so convert numbers yourself.</p>
+
+<div class="exercise" data-id="p7-csv-overdue"></div>
+
+<h2>2. Set up the project</h2>
+
+<p>The script lives in a real file: <code>workspace/lesson12/log_report.py</code>. Next to it is
+<code>test_log_report.py</code>, a set of tests that already describe what each function
+should do. Your job is to make them pass.</p>
+
+<p><strong>Open the folder in your editor.</strong> You have Cursor installed:</p>
+
+<pre>open -a Cursor ~/Developer/support-skills/workspace</pre>
+
+<div class="box careful">
+  <span class="tag">Turn off the autocomplete while you practice</span>
+  <p>Cursor's AI completions will happily write every function for you as you type, and then
+  you won't have learned to write them. Turn off Cursor Tab in Cursor's settings while you work
+  through these lessons, and turn it back on when you're building for real.</p>
+</div>
+
+<p><strong>Open Terminal</strong> in the workspace folder with the course's Python turned on:</p>
+
+<pre>cd ~/Developer/support-skills/workspace
+source ../.venv/bin/activate</pre>
+
+<p>Now run the tests:</p>
+
+<pre>python -m pytest lesson12</pre>
+
+<p>You'll see a wall of <code>F</code>s and red. That's the starting point. Read the summary at
+the bottom:</p>
+
+<pre>FAILED lesson12/test_log_report.py::test_parse_line_reads_json - assert None == {…}
+…
+8 failed, 3 passed in 0.03s</pre>
+
+<p>Three pass already: two check that bad lines give <code>None</code> (which an empty function
+returns anyway), and <code>normalize_path</code> is written for you as an example. Each FAILED
+line names a test, and the bit after the dash is why. That's your to-do list.</p>
+
+<h2>3. How tests work</h2>
+
+<p>Open <code>test_log_report.py</code> and read the first test:</p>
+
+<pre>def test_parse_line_reads_json():
+    entry = parse_line('{"status": 500, "path": "/api/v1/me"}\n')
+    assert entry == {"status": 500, "path": "/api/v1/me"}</pre>
+
+<p>That's all a test is: a function whose name starts with <code>test_</code> that calls your
+code and <code>assert</code>s something about the result. If the assert is false, the test fails
+and pytest shows both values. pytest finds every <code>test_*.py</code> file and every
+<code>test_*</code> function in it automatically.</p>
+
+<p>Commands you'll use constantly:</p>
+
+<div class="tablewrap">
+<table class="ref">
+  <tr><th>Command</th><th>Does</th></tr>
+  <tr><td><code>python -m pytest lesson12</code></td><td>run every test in the folder</td></tr>
+  <tr><td><code>python -m pytest lesson12 -k parse_line</code></td><td>only tests whose name contains "parse_line"</td></tr>
+  <tr><td><code>python -m pytest lesson12 -x</code></td><td>stop at the first failure (less to read)</td></tr>
+  <tr><td><code>python -m pytest lesson12 -v</code></td><td>one line per test, by name</td></tr>
+</table>
+</div>
+
+<p>The workflow, which is how most professional code gets written: <strong>run the tests, pick
+one failing test, make it pass, run them again.</strong> Small steps. You always know where you
+are.</p>
+
+<h2>4. Build it, one function at a time</h2>
+
+<p>Work top to bottom in <code>log_report.py</code>. Each function has a docstring saying what
+it should do and <code>TODO</code> comments with a nudge. Notes for each, if you need them:</p>
+
+<details class="quiz">
+  <summary><code>parse_line</code></summary>
+  <div class="answer">
+    <p>Three steps: <code>line = line.strip()</code>; if it's empty, <code>return None</code>;
+    then <code>try: return json.loads(line)</code> with <code>except json.JSONDecodeError:
+    return None</code>. That except is the difference between a report and a crash when one log
+    line was cut off halfway, which really happens.</p>
+    <p>Check: <code>python -m pytest lesson12 -k parse_line</code></p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary><code>read_requests</code></summary>
+  <div class="answer">
+    <p>Same shape as the first warm-up: <code>with open(path) as f:</code>,
+    <code>for line in f:</code>, <code>entry = parse_line(line)</code>, then append it if
+    <code>entry is not None and "status" in entry</code>. Notice how it reuses
+    <code>parse_line</code>: small functions that each do one thing are easy to test and easy to
+    combine.</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary><code>failures_by_endpoint</code></summary>
+  <div class="answer">
+    <p>A Counter can count pairs. Build one from a generator expression (a comprehension in
+    round brackets):</p>
+    <pre>counts = Counter(
+    (normalize_path(e["path"]), e["status"]) for e in entries if e["status"] >= 400
+)</pre>
+    <p><code>counts.most_common()</code> gives <code>[((path, status), count), …]</code>,
+    biggest first. The test wants flat tuples, so unpack each one:
+    <code>[(path, status, count) for (path, status), count in counts.most_common()]</code>.</p>
+  </div>
+</details>
+
+<details class="quiz">
+  <summary><code>top_accounts</code></summary>
+  <div class="answer"><p>One Counter of <code>e["account_id"]</code> for entries whose status
+  equals the one asked for, then <code>return counts.most_common(n)</code>.</p></div>
+</details>
+
+<details class="quiz">
+  <summary><code>write_csv</code></summary>
+  <div class="answer">
+    <pre>with open(path, "w", newline="") as f:
+    writer = csv.writer(f)
+    writer.writerow(header)
+    writer.writerows(rows)</pre>
+    <p><code>"w"</code> opens for writing (replacing the file). <code>newline=""</code> stops
+    blank lines appearing between rows on some systems; the csv docs ask for it.</p>
+  </div>
+</details>
+
+<p>When <code>python -m pytest lesson12</code> says <code>11 passed</code>, run the real
+thing:</p>
+
+<pre>python lesson12/log_report.py data/history.log</pre>
+
+<p>You'll get the failures table and the top accounts for 500s, and a file at
+<code>workspace/out/failures.csv</code>. Open it with <code>open out/failures.csv</code> and it
+lands in Numbers or Excel, ready for the weekly doc.</p>
+
+<div class="box tip">
+  <span class="tag">Stuck?</span>
+  <p>A finished version is in <code>course/solutions/lesson12/log_report.py</code>. Try for a
+  while first: being stuck and getting unstuck is the skill. When you do look, close it and
+  write your version from memory afterwards.</p>
+</div>
+
+<h2>5. Write your own tests</h2>
+
+<p>At the bottom of the <code>top_accounts</code> section of the test file is a comment
+asking for two more tests. Write them:</p>
+
+<ol>
+  <li>One that checks <code>top_accounts(entries, 500, n=3)</code> returns exactly 3 items.</li>
+  <li>One that checks a status nobody got (<code>418</code>) returns an empty list.</li>
+</ol>
+
+<p>Then prove they're really testing something: break <code>top_accounts</code> on purpose
+(change <code>most_common(n)</code> to <code>most_common()</code>), run the tests, and watch
+yours fail. Put it back. A test you've never seen fail might not be testing anything.</p>
+
+<details class="quiz">
+  <summary>One way to write them</summary>
+  <div class="answer">
+    <pre>def test_top_accounts_respects_n():
+    assert len(top_accounts(read_requests(LOG), 500, n=3)) == 3
+
+
+def test_top_accounts_unknown_status_is_empty():
+    assert top_accounts(read_requests(LOG), 418) == []</pre>
+    <p>Good test names say what they promise, so a failure reads like a sentence: "top accounts
+    respects n" failed.</p>
+  </div>
+</details>
+
+<h2>6. If you want more</h2>
+
+<ul>
+  <li>Add the total request count per endpoint next to the failures, so 46 failures out of 670
+    requests can be shown as a rate.</li>
+  <li>Make the report skip <code>401</code>s from revoked keys, which are expected noise (look at
+    <code>key_label</code>). Write the test first.</li>
+  <li>Print the time of the first and last 500. You did this with SQL in Lesson 6; now do it on
+    the log file.</li>
+</ul>
+
+<h2>Recap</h2>
+
+<ul>
+  <li><code>with open(path) as f: for line in f:</code> reads any size of file safely.</li>
+  <li><code>json.loads</code> for JSON lines; <code>csv.DictReader</code> / <code>csv.writer</code> for CSV.</li>
+  <li><code>Counter</code> counts anything, including pairs, and <code>.most_common(n)</code> sorts for you.</li>
+  <li>Small functions that do one thing, combined in <code>main</code>.</li>
+  <li>Tests are functions named <code>test_…</code> that <code>assert</code>. Red, make one pass, green, repeat. Watch a new test fail once.</li>
+</ul>
+
+</main>
+</body>
+</html>
